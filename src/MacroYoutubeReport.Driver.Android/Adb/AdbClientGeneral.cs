@@ -122,4 +122,25 @@ public sealed class AdbClientGeneral
 
         return (1080, 2400);
     }
+
+    /// <summary>
+    /// Kiểm tra xem bàn phím ảo của hệ thống Android có đang thực sự hiển thị trên màn hình hay không.
+    /// Tránh gửi phím Back nhầm làm tắt các hộp thoại BottomSheet/Dialog khi bàn phím không mở.
+    /// </summary>
+    public async Task<bool> IsSoftKeyboardShownAsync(DeviceData device, CancellationToken ct = default)
+    {
+        try
+        {
+            string output = await ExecuteShellAsync(device, "dumpsys input_method", ct).ConfigureAwait(false);
+            if (string.IsNullOrWhiteSpace(output)) return false;
+
+            // Kiểm tra mInputShown=true (Android 7 - 14)
+            return output.Contains("mInputShown=true", StringComparison.OrdinalIgnoreCase) ||
+                   output.Contains("mIsInputViewShown=true", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

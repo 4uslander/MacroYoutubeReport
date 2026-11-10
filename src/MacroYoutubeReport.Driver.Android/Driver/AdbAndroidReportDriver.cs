@@ -875,31 +875,33 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                 if (nextElem != null)
                 {
                     await AdbUiXmlDumper.Instance.TapElementAsync(device, nextElem, ct).ConfigureAwait(false);
-                    await Task.Delay(1500, ct).ConfigureAwait(false);
+                    await Task.Delay(2000, ct).ConfigureAwait(false);
                 }
             }
         }
 
         // 4. Xử lý Trang 2: Nhập nội dung lý do báo cáo vào ô EditText & Bấm nút gửi Báo cáo
         XmlDocument? page2Doc = null;
-        for (int p2Wait = 0; p2Wait < 4; p2Wait++)
+        bool isPage2 = false;
+        for (int p2Wait = 0; p2Wait < 6; p2Wait++)
         {
-            await Task.Delay(800, ct).ConfigureAwait(false);
+            await Task.Delay(600, ct).ConfigureAwait(false);
             page2Doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             if (page2Doc != null && page2Doc.SelectSingleNode("//node[contains(@text, '세부정보') or contains(@content-desc, '세부정보') or @class='android.widget.EditText' or contains(@text, '자세한 내용')]") != null)
             {
+                isPage2 = true;
                 break;
             }
         }
 
-        if (page2Doc != null)
+        if (isPage2 && page2Doc != null)
         {
             // 4.1. Nhập văn bản giải trình vào ô EditText
-            // Tag trong UIAutomator luôn là <node ... class="android.widget.EditText">
+            // Định vị chính xác ô nhập (Ưu tiên class EditText hoặc placeholder "세부정보 추가...", loại trừ các nhãn mô tả)
             var editNode = page2Doc.SelectSingleNode(
-                "//node[@class='android.widget.EditText' or @text='세부정보 추가...' or contains(@text, '세부정보 추가') or " +
-                "contains(@text, 'Add details') or contains(@text, 'Chi tiết') or contains(@content-desc, '세부정보') or " +
-                "contains(@resource-id, 'edit_text') or contains(@resource-id, 'detail')]");
+                "//node[@class='android.widget.EditText' or @text='세부정보 추가...' or " +
+                "(@class='android.view.ViewGroup' and contains(@text, '세부정보 추가')) or " +
+                "(contains(@resource-id, 'edit_text') and not(contains(@text, '몇 가지')))]");
 
             bool focusedInput = false;
             if (editNode != null)
@@ -930,41 +932,52 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             await AdbImeHelper.InputTextAsync(device, detailText, ct).ConfigureAwait(false);
             await Task.Delay(800, ct).ConfigureAwait(false);
 
-            // Ẩn bàn phím ảo (Back key) để hiển thị rõ nút pill '신고' ở đáy màn hình
-            await AdbClientGeneral.Instance.PressBackAsync(device, ct).ConfigureAwait(false);
-            await Task.Delay(800, ct).ConfigureAwait(false);
+            // CHỈ ĐÓNG BÀN PHÍM NẾU BÀN PHÍM ẢO THỰC SỰ ĐANG MỞ (dumpsys input_method mInputShown=true)
+            // TUYỆT ĐỐI KHÔNG gửi phím Back khi dùng LaiXi AdbIME vì sẽ làm tắt luôn hộp thoại báo cáo!
+            bool isSoftKeyboardOpen = await AdbClientGeneral.Instance.IsSoftKeyboardShownAsync(device, ct).ConfigureAwait(false);
+            if (isSoftKeyboardOpen)
+            {
+                await AdbClientGeneral.Instance.PressBackAsync(device, ct).ConfigureAwait(false);
+                await Task.Delay(600, ct).ConfigureAwait(false);
+            }
 
             // 4.2. Nhấn nút gửi báo cáo chính thức: '신고' / 'Báo cáo' / 'Report' / 'Submit'
             // ĐẶC BIỆT LƯU Ý: Nút '신고' ở đáy màn hình là một nút pill đen lớn (Bounds.Y >= screenHeight * 0.60)
             // TUYỆT ĐỐI KHÔNG bấm nhầm vào chữ '신고' trên thanh tiêu đề đầu trang (Y ~ 144)
             var submitDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-            bool tappedSubmit = false;
+            if (submitDoc == null) return false;
 
-            if (submitDoc != null)
+            // KIỂM TRA BẢO VỆ: Hộp thoại báo cáo phải CÒN ĐANG MỞ
+            bool isDialogStillOpen = submitDoc.SelectSingleNode("//node[contains(@text, '신고') or contains(@text, '자세한 내용') or contains(@text, '세부정보')]") != null;
+            if (!isDialogStillOpen)
             {
-                var candidateNodes = submitDoc.SelectNodes(
-                    "//node[(@text='신고' or @content-desc='신고' or @text='Report' or @content-desc='Report' or @text='Báo cáo' or @content-desc='Báo cáo' or @text='Submit' or @content-desc='Submit') or " +
-                    "((contains(@text, '신고') or contains(@content-desc, '신고') or contains(@text, 'Report') or contains(@content-desc, 'Report')) and (@clickable='true' or @class='android.widget.Button' or @class='android.widget.TextView' or @class='android.view.ViewGroup'))]");
+                // Nếu hộp thoại đã bị đóng, TUYỆT ĐỐI KHÔNG click mù vào tọa độ Y=87% (tránh nhảy sang video khác)!
+                return false;
+            }
 
-                if (candidateNodes != null)
+            bool tappedSubmit = false;
+            var candidateNodes = submitDoc.SelectNodes(
+                "//node[(@text='신고' or @content-desc='신고' or @text='Report' or @content-desc='Report' or @text='Báo cáo' or @content-desc='Báo cáo' or @text='Submit' or @content-desc='Submit') or " +
+                "((contains(@text, '신고') or contains(@content-desc, '신고') or contains(@text, 'Report') or contains(@content-desc, 'Report')) and (@clickable='true' or @class='android.widget.Button' or @class='android.widget.TextView' or @class='android.view.ViewGroup'))]");
+
+            if (candidateNodes != null)
+            {
+                foreach (XmlNode n in candidateNodes)
                 {
-                    foreach (XmlNode n in candidateNodes)
+                    var elem = AdbUiXmlDumper.ParseElement(n);
+                    if (elem != null && elem.Bounds.Y >= (_screenResolution.Height * 0.60))
                     {
-                        var elem = AdbUiXmlDumper.ParseElement(n);
-                        if (elem != null && elem.Bounds.Y >= (_screenResolution.Height * 0.60))
-                        {
-                            await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
-                            await Task.Delay(2500, ct).ConfigureAwait(false);
-                            tappedSubmit = true;
-                            break;
-                        }
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                        await Task.Delay(2500, ct).ConfigureAwait(false);
+                        tappedSubmit = true;
+                        break;
                     }
                 }
             }
 
-            if (!tappedSubmit)
+            if (!tappedSubmit && isDialogStillOpen)
             {
-                // Fallback: bấm thẳng vào vùng nút pill gửi ở đáy màn hình (X = 50%, Y ~ 87%)
+                // Chỉ fallback bấm vùng nút gửi ở đáy màn hình khi và chỉ khi xác nhận hộp thoại còn mở
                 int subX = _screenResolution.Width / 2;
                 int subY = (int)(_screenResolution.Height * 0.87);
                 await AdbClientGeneral.Instance.TapAsync(device, subX, subY, ct).ConfigureAwait(false);

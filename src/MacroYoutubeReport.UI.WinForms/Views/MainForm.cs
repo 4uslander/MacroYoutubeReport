@@ -452,6 +452,24 @@ public partial class MainForm : Form, IMainView
         tsmiLangKr.Checked = lang == AppLanguage.Korean;
         tsmiLangEn.Checked = lang == AppLanguage.English;
 
+        ApplyLocalization(this, lang);
+
+        // Localize Grids
+        foreach (DataGridViewColumn col in dgvTasks.Columns)
+        {
+            if (col.Tag == null) col.Tag = col.HeaderText;
+            col.HeaderText = UiLanguageManager.Translate((string)col.Tag, lang);
+        }
+
+        foreach (DataGridViewColumn col in dgvDevices.Columns)
+        {
+            if (col.Tag == null) col.Tag = col.HeaderText;
+            col.HeaderText = UiLanguageManager.Translate((string)col.Tag, lang);
+        }
+
+        // Localize Menu
+        LocalizeToolStrip(menuStripMain, lang);
+
         string langName = lang switch
         {
             AppLanguage.Korean => "한국어",
@@ -459,6 +477,52 @@ public partial class MainForm : Form, IMainView
             _ => "Tiếng Việt"
         };
         AppendLog($"Đã chuyển ngôn ngữ sang: {langName}", "INFO");
+    }
+
+    private void ApplyLocalization(Control parent, AppLanguage lang)
+    {
+        foreach (Control c in parent.Controls)
+        {
+            if (c is Button || c is Label || c is GroupBox || c is CheckBox || c is RadioButton)
+            {
+                if (c.Tag == null) c.Tag = c.Text ?? string.Empty;
+                c.Text = UiLanguageManager.Translate(c.Tag?.ToString() ?? string.Empty, lang);
+            }
+
+            if (c.HasChildren)
+            {
+                ApplyLocalization(c, lang);
+            }
+        }
+    }
+
+    private void LocalizeToolStrip(ToolStrip strip, AppLanguage lang)
+    {
+        foreach (ToolStripItem item in strip.Items)
+        {
+            LocalizeToolStripItem(item, lang);
+        }
+    }
+
+    private void LocalizeToolStripItem(ToolStripItem item, AppLanguage lang)
+    {
+        if (item is ToolStripMenuItem menuItem)
+        {
+            // Do not translate language toggles themselves (VI, KR, EN)
+            if (menuItem == tsmiLangVi || menuItem == tsmiLangKr || menuItem == tsmiLangEn)
+                return;
+        }
+
+        if (item.Tag == null) item.Tag = item.Text ?? string.Empty;
+        item.Text = UiLanguageManager.Translate(item.Tag?.ToString() ?? string.Empty, lang);
+
+        if (item is ToolStripDropDownItem dropDown)
+        {
+            foreach (ToolStripItem sub in dropDown.DropDownItems)
+            {
+                LocalizeToolStripItem(sub, lang);
+            }
+        }
     }
 
     private void MoveSelectedTask(int direction)

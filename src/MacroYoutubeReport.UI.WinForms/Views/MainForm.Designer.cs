@@ -240,6 +240,7 @@ partial class MainForm
         });
         this.menuStripMain.Dock = DockStyle.Top;
         this.menuStripMain.BackColor = Color.FromArgb(245, 245, 245);
+        this.menuStripMain.Font = new Font("Segoe UI", 9F);
 
         this.tsmiMenu.Text = "Menu";
         this.tsmiMenu.DropDownItems.AddRange(new ToolStripItem[] {
@@ -515,50 +516,50 @@ partial class MainForm
 
         // Top Action Bar
         this.pnlTopActions.Dock = DockStyle.Top;
-        this.pnlTopActions.Height = 72;
+        this.pnlTopActions.Height = 84;
         this.pnlTopActions.BackColor = Color.FromArgb(245, 245, 245);
         this.pnlTopActions.BorderStyle = BorderStyle.FixedSingle;
-        this.pnlTopActions.Padding = new Padding(4);
+        this.pnlTopActions.Padding = new Padding(6);
 
         this.btnActionHome.Text = "Home";
-        this.btnActionHome.Location = new Point(6, 6);
-        this.btnActionHome.Size = new Size(75, 28);
+        this.btnActionHome.Location = new Point(6, 8);
+        this.btnActionHome.Size = new Size(75, 30);
 
         this.btnActionCloseAll.Text = "Đóng tất cả";
-        this.btnActionCloseAll.Location = new Point(85, 6);
-        this.btnActionCloseAll.Size = new Size(95, 28);
+        this.btnActionCloseAll.Location = new Point(86, 8);
+        this.btnActionCloseAll.Size = new Size(95, 30);
 
         this.btnActionFullScreen.Text = "Toàn màn hình";
-        this.btnActionFullScreen.Location = new Point(184, 6);
-        this.btnActionFullScreen.Size = new Size(110, 28);
+        this.btnActionFullScreen.Location = new Point(186, 8);
+        this.btnActionFullScreen.Size = new Size(110, 30);
 
         this.btnActionCheckAccount.Text = "Kiểm tra tài khoản";
-        this.btnActionCheckAccount.Location = new Point(298, 6);
-        this.btnActionCheckAccount.Size = new Size(130, 28);
+        this.btnActionCheckAccount.Location = new Point(301, 8);
+        this.btnActionCheckAccount.Size = new Size(130, 30);
 
         this.btnActionCheckYoutube.Text = "Kiểm tra trên YouTube";
-        this.btnActionCheckYoutube.Location = new Point(432, 6);
-        this.btnActionCheckYoutube.Size = new Size(150, 28);
+        this.btnActionCheckYoutube.Location = new Point(436, 8);
+        this.btnActionCheckYoutube.Size = new Size(150, 30);
 
         this.btnActionReallocate.Text = "Phân bổ lại tài khoản";
-        this.btnActionReallocate.Location = new Point(586, 6);
-        this.btnActionReallocate.Size = new Size(140, 28);
+        this.btnActionReallocate.Location = new Point(591, 8);
+        this.btnActionReallocate.Size = new Size(140, 30);
 
         this.btnActionResetCache.Text = "Xóa cache YouTube";
-        this.btnActionResetCache.Location = new Point(6, 38);
-        this.btnActionResetCache.Size = new Size(135, 28);
+        this.btnActionResetCache.Location = new Point(6, 44);
+        this.btnActionResetCache.Size = new Size(135, 30);
 
         this.btnActionScanTcp.Text = "Quét gom TCP";
-        this.btnActionScanTcp.Location = new Point(145, 38);
-        this.btnActionScanTcp.Size = new Size(110, 28);
+        this.btnActionScanTcp.Location = new Point(146, 44);
+        this.btnActionScanTcp.Size = new Size(110, 30);
 
         this.btnActionExportCsv.Text = "Xuất báo cáo CSV";
-        this.btnActionExportCsv.Location = new Point(259, 38);
-        this.btnActionExportCsv.Size = new Size(125, 28);
+        this.btnActionExportCsv.Location = new Point(261, 44);
+        this.btnActionExportCsv.Size = new Size(125, 30);
 
         this.btnActionClearCompleted.Text = "Dọn tác vụ xong";
-        this.btnActionClearCompleted.Location = new Point(388, 38);
-        this.btnActionClearCompleted.Size = new Size(120, 28);
+        this.btnActionClearCompleted.Location = new Point(391, 44);
+        this.btnActionClearCompleted.Size = new Size(120, 30);
 
         this.pnlTopActions.Controls.AddRange(new Control[] {
             this.btnActionHome, this.btnActionCloseAll, this.btnActionFullScreen,
@@ -568,10 +569,10 @@ partial class MainForm
 
         // Upper Section: Tasks Grid
         this.pnlTasksContainer.Dock = DockStyle.Top;
-        this.pnlTasksContainer.Height = 230;
+        this.pnlTasksContainer.Height = 240;
 
         this.dgvTasks.Dock = DockStyle.Fill;
-        this.dgvTasks.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        this.dgvTasks.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
         this.dgvTasks.AllowUserToAddRows = false;
         this.dgvTasks.ReadOnly = false;
         this.dgvTasks.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -594,7 +595,7 @@ partial class MainForm
             HeaderText = "Khởi động lại",
             Text = "Khởi động lại",
             UseColumnTextForButtonValue = true,
-            Width = 90,
+            Width = 95,
             ReadOnly = true
         };
         var colActionStop = new DataGridViewButtonColumn
@@ -603,7 +604,7 @@ partial class MainForm
             HeaderText = "Dừng",
             Text = "Dừng",
             UseColumnTextForButtonValue = true,
-            Width = 55,
+            Width = 60,
             ReadOnly = true
         };
         var colActionDel = new DataGridViewButtonColumn
@@ -622,30 +623,34 @@ partial class MainForm
         this.dgvTasks.Columns.Add(colActionDel);
 
         this.dgvTasks.Columns.Add("COL_DEV_COUNT", "Số thiết bị");
-        this.dgvTasks.Columns["COL_DEV_COUNT"].Width = 70;
+        this.dgvTasks.Columns["COL_DEV_COUNT"].Width = 75;
         this.dgvTasks.Columns["COL_DEV_COUNT"].ReadOnly = true;
 
         this.dgvTasks.Columns.Add("COL_KEYWORD", "Từ khóa");
+        this.dgvTasks.Columns["COL_KEYWORD"].Width = 140;
         this.dgvTasks.Columns["COL_KEYWORD"].ReadOnly = true;
 
         this.dgvTasks.Columns.Add("COL_CHANNEL", "Tên kênh");
+        this.dgvTasks.Columns["COL_CHANNEL"].Width = 140;
         this.dgvTasks.Columns["COL_CHANNEL"].ReadOnly = true;
 
         this.dgvTasks.Columns.Add("COL_TITLE", "Tên tiêu đề");
+        this.dgvTasks.Columns["COL_TITLE"].Width = 200;
         this.dgvTasks.Columns["COL_TITLE"].ReadOnly = true;
 
         this.dgvTasks.Columns.Add("COL_URL", "URL YouTube");
+        this.dgvTasks.Columns["COL_URL"].Width = 220;
         this.dgvTasks.Columns["COL_URL"].ReadOnly = true;
 
         this.dgvTasks.Columns.Add("COL_INTERVAL", "Khoảng chạy");
-        this.dgvTasks.Columns["COL_INTERVAL"].Width = 85;
+        this.dgvTasks.Columns["COL_INTERVAL"].Width = 95;
         this.dgvTasks.Columns["COL_INTERVAL"].ReadOnly = true;
 
         var colRandStart = new DataGridViewCheckBoxColumn
         {
             Name = "COL_RANDOM_START",
             HeaderText = "Bắt đầu ngẫu nhiên",
-            Width = 70,
+            Width = 80,
             TrueValue = true,
             FalseValue = false,
             ReadOnly = false
@@ -656,7 +661,7 @@ partial class MainForm
         {
             Name = "COL_DIRECT",
             HeaderText = "Trực tiếp",
-            Width = 60,
+            Width = 65,
             TrueValue = true,
             FalseValue = false,
             ReadOnly = false
@@ -664,11 +669,11 @@ partial class MainForm
         this.dgvTasks.Columns.Add(colDirect);
 
         this.dgvTasks.Columns.Add("COL_PROGRESS", "Đã chạy");
-        this.dgvTasks.Columns["COL_PROGRESS"].Width = 70;
+        this.dgvTasks.Columns["COL_PROGRESS"].Width = 75;
         this.dgvTasks.Columns["COL_PROGRESS"].ReadOnly = true;
 
         this.dgvTasks.Columns.Add("COL_STATUS", "Trạng thái");
-        this.dgvTasks.Columns["COL_STATUS"].Width = 90;
+        this.dgvTasks.Columns["COL_STATUS"].Width = 100;
         this.dgvTasks.Columns["COL_STATUS"].ReadOnly = true;
 
         this.pnlTasksContainer.Controls.Add(this.dgvTasks);
@@ -751,11 +756,11 @@ partial class MainForm
         // Lower Section: SplitContainer (Devices Grid + Live Console Log)
         this.splitLower.Dock = DockStyle.Fill;
         this.splitLower.Orientation = Orientation.Vertical;
-        this.splitLower.SplitterDistance = 640;
+        this.splitLower.SplitterDistance = 975;
 
         // Lower Left: Devices Grid
         this.dgvDevices.Dock = DockStyle.Fill;
-        this.dgvDevices.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.Fill;
+        this.dgvDevices.AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.None;
         this.dgvDevices.AllowUserToAddRows = false;
         this.dgvDevices.ReadOnly = false;
         this.dgvDevices.SelectionMode = DataGridViewSelectionMode.FullRowSelect;
@@ -775,23 +780,23 @@ partial class MainForm
         this.dgvDevices.Columns.Add(colDevSel);
 
         this.dgvDevices.Columns.Add("DEV_NUM", "STT");
-        this.dgvDevices.Columns["DEV_NUM"].Width = 40;
+        this.dgvDevices.Columns["DEV_NUM"].Width = 42;
         this.dgvDevices.Columns["DEV_NUM"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_IP", "IP / Proxy");
-        this.dgvDevices.Columns["DEV_IP"].Width = 120;
+        this.dgvDevices.Columns["DEV_IP"].Width = 135;
         this.dgvDevices.Columns["DEV_IP"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_SERIAL", "Serial thiết bị");
-        this.dgvDevices.Columns["DEV_SERIAL"].Width = 125;
+        this.dgvDevices.Columns["DEV_SERIAL"].Width = 160;
         this.dgvDevices.Columns["DEV_SERIAL"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_MODEL", "Thiết bị");
-        this.dgvDevices.Columns["DEV_MODEL"].Width = 85;
+        this.dgvDevices.Columns["DEV_MODEL"].Width = 100;
         this.dgvDevices.Columns["DEV_MODEL"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_MAIL", "Tài khoản");
-        this.dgvDevices.Columns["DEV_MAIL"].Width = 110;
+        this.dgvDevices.Columns["DEV_MAIL"].Width = 130;
         this.dgvDevices.Columns["DEV_MAIL"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_PASS", "Mật khẩu");
@@ -799,10 +804,11 @@ partial class MainForm
         this.dgvDevices.Columns["DEV_PASS"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_TARGET", "Mục tiêu đang chạy");
+        this.dgvDevices.Columns["DEV_TARGET"].Width = 180;
         this.dgvDevices.Columns["DEV_TARGET"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_STATUS", "Trạng thái");
-        this.dgvDevices.Columns["DEV_STATUS"].Width = 85;
+        this.dgvDevices.Columns["DEV_STATUS"].Width = 95;
         this.dgvDevices.Columns["DEV_STATUS"].ReadOnly = true;
 
         this.splitLower.Panel1.Controls.Add(this.dgvDevices);
@@ -839,16 +845,14 @@ partial class MainForm
         // Form settings
         this.AutoScaleDimensions = new SizeF(7F, 15F);
         this.AutoScaleMode = AutoScaleMode.Font;
-        this.ClientSize = new Size(1366, 740);
+        this.ClientSize = new Size(1536, 864);
         this.Controls.Add(this.pnlRight);
         this.Controls.Add(this.pnlLeft);
         this.Controls.Add(this.menuStripMain);
+        this.menuStripMain.SendToBack();
         this.MainMenuStrip = this.menuStripMain;
         this.Text = "YouTube Auto Report - 1.0.0 - AutoYouTube Report Macro";
         this.StartPosition = FormStartPosition.CenterScreen;
-        this.MinimumSize = new Size(1180, 650);
-
-        // Ensure menu is brought to front
-        this.menuStripMain.BringToFront();
+        this.MinimumSize = new Size(1300, 750);
     }
 }

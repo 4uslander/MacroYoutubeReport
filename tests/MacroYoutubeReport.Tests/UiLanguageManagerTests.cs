@@ -41,4 +41,19 @@ public class UiLanguageManagerTests
         Assert.Contains(allSuccess, k => k.Contains("Thank") || k.Contains("Thanks"));
         Assert.Contains(allSuccess, k => k.Contains("감사합니다"));
     }
+
+    [Theory]
+    [InlineData("Bắt đầu", AppLanguage.Korean, "시작")]
+    [InlineData("Bắt đầu", AppLanguage.English, "Start")]
+    [InlineData("Dừng", AppLanguage.Korean, "중지")]
+    [InlineData("Dừng", AppLanguage.English, "Stop")]
+    [InlineData("Xóa cache YouTube", AppLanguage.Korean, "YouTube 캐시 삭제")]
+    [InlineData("Xóa cache YouTube", AppLanguage.English, "Clear YT Cache")]
+    [InlineData("Quét thiết bị", AppLanguage.Korean, "기기 검색")]
+    [InlineData("Quét thiết bị", AppLanguage.English, "Scan Devices")]
+    public void Translate_ReturnsExpectedLanguageText(string viText, AppLanguage targetLang, string expected)
+    {
+        string result = UiLanguageManager.Translate(viText, targetLang);
+        Assert.Equal(expected, result);
+    }
 }

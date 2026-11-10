@@ -238,4 +238,131 @@ public static class UiLanguageManager
 
         return null;
     }
+
+    private static readonly Dictionary<string, (string Kr, string En)> UiTranslations = new(StringComparer.OrdinalIgnoreCase)
+    {
+        // Platform / Auth
+        ["Đăng nhập & Nền tảng"] = ("로그인 & 플랫폼", "Login & Platform"),
+        ["Android (ADB)"] = ("안드로이드 (ADB)", "Android (ADB)"),
+        ["Chrome (Playwright)"] = ("크롬 (Playwright)", "Chrome (Playwright)"),
+        ["Chọn file account.txt..."] = ("계정 파일 선택...", "Select account file..."),
+        ["Chọn file proxy.txt..."] = ("프록시 파일 선택...", "Select proxy file..."),
+        ["Chọn"] = ("선택", "Browse"),
+
+        // Target Input
+        ["Cài đặt Mục tiêu"] = ("목표 설정", "Target Settings"),
+        ["Loại:"] = ("구분:", "Type:"),
+        ["Từ khóa:"] = ("키워드:", "Keyword:"),
+        ["Tên kênh:"] = ("채널명:", "Channel:"),
+        ["Tiêu đề:"] = ("제목:", "Title:"),
+        ["URL:"] = ("URL:", "URL:"),
+        ["+ Thêm"] = ("+ 추가", "+ Add"),
+        ["Nhập file"] = ("파일 불러오기", "Import File"),
+        ["Xóa"] = ("삭제", "Delete"),
+
+        // Report Settings
+        ["Bộ lọc Tiêu chí Báo cáo"] = ("신고 기준 필터", "Report Criteria Filter"),
+        ["Kịch bản:"] = ("시나리오:", "Scenario:"),
+        ["Lý do:"] = ("사유:", "Reason:"),
+        ["Xem (giây):"] = ("시청 (초):", "Watch (sec):"),
+        ["đến"] = ("~", "to"),
+        ["Nghỉ (s):"] = ("휴식 (초):", "Cooldown (s):"),
+        ["Luồng:"] = ("스레드:", "Threads:"),
+        ["Bỏ qua quảng cáo (Skip Ad)"] = ("광고 건너뛰기 (Skip Ad)", "Auto Skip Ads"),
+        ["Mô phỏng người thật (cuộn đọc comment)"] = ("인간 시뮬레이션 (댓글 스크롤)", "Human Simulation (Scroll Comments)"),
+        ["Xem ngẫu nhiên (Random watch)"] = ("랜덤 시청 (Random watch)", "Random Watch"),
+        ["Tự động xoay vòng lý do vi phạm"] = ("위반 사유 자동 순환", "Auto Rotate Reasons"),
+        ["Tự động phân bổ tài khoản Proxy"] = ("프록시 계정 자동 할당", "Auto Allocate Proxies"),
+
+        // Left bottom action buttons
+        ["Quét thiết bị"] = ("기기 검색", "Scan Devices"),
+        ["Bắt đầu"] = ("시작", "Start"),
+        ["Dừng"] = ("중지", "Stop"),
+        ["Thoát"] = ("종료", "Exit"),
+
+        // Top Action Bar
+        ["Home"] = ("홈", "Home"),
+        ["Đóng tất cả"] = ("모두 닫기", "Close All"),
+        ["Toàn màn hình"] = ("전체 화면", "Full Screen"),
+        ["Kiểm tra tài khoản"] = ("계정 확인", "Check Accounts"),
+        ["Kiểm tra trên YouTube"] = ("YouTube 확인", "Check on YouTube"),
+        ["Phân bổ lại tài khoản"] = ("계정 재할당", "Reallocate Accounts"),
+        ["Xóa cache YouTube"] = ("YouTube 캐시 삭제", "Clear YT Cache"),
+        ["Quét gom TCP"] = ("TCP 검색 및 통합", "Scan & Gather TCP"),
+        ["Xuất báo cáo CSV"] = ("CSV 보고서 내보내기", "Export CSV Report"),
+        ["Dọn tác vụ xong"] = ("완료 작업 정리", "Clear Completed"),
+
+        // Filter Bar
+        ["Tất cả"] = ("전체", "All"),
+        ["Hoàn thành"] = ("완료", "Done"),
+        ["Đang chạy"] = ("실행 중", "Running"),
+        ["Thất bại"] = ("실패", "Failed"),
+        ["Tìm"] = ("찾기", "Find"),
+        ["Trùng"] = ("중복", "Duplicates"),
+        ["Sao chép"] = ("복사", "Duplicate"),
+
+        // Task Grid Headers
+        ["Khởi động lại"] = ("재시작", "Restart"),
+        ["Số thiết bị"] = ("기기수", "Devices"),
+        ["Từ khóa"] = ("키워드", "Keyword"),
+        ["Tên kênh"] = ("채널명", "Channel"),
+        ["Tên tiêu đề"] = ("제목", "Title"),
+        ["URL YouTube"] = ("YouTube URL", "YouTube URL"),
+        ["Khoảng chạy"] = ("실행 간격", "Interval"),
+        ["Bắt đầu ngẫu nhiên"] = ("랜덤 시작", "Random Start"),
+        ["Trực tiếp"] = ("라이브", "Live"),
+        ["Đã chạy"] = ("진행수", "Progress"),
+        ["Trạng thái"] = ("상태", "Status"),
+
+        // Device Grid Headers
+        ["STT"] = ("번호", "No"),
+        ["IP / Proxy"] = ("IP / 프록시", "IP / Proxy"),
+        ["Serial thiết bị"] = ("기기 시리얼", "Device Serial"),
+        ["Thiết bị"] = ("기기 모델", "Device Model"),
+        ["Tài khoản"] = ("계정", "Account"),
+        ["Mật khẩu"] = ("비밀번호", "Password"),
+        ["Mục tiêu đang chạy"] = ("실행 중 목표", "Current Target"),
+
+        // Menu Items
+        ["Menu"] = ("메뉴", "Menu"),
+        ["Mở thư mục Logs"] = ("로그 폴더 열기", "Open Logs Folder"),
+        ["Nhập tài khoản Gmail..."] = ("지메일 계정 불러오기...", "Import Gmail Accounts..."),
+        ["Nhập danh sách Proxy..."] = ("프록시 목록 불러오기...", "Import Proxies..."),
+        ["Khác"] = ("기타", "Tools"),
+        ["Xóa Cache ứng dụng YouTube"] = ("YouTube 앱 캐시 삭제", "Clear YouTube App Cache"),
+        ["Khởi động lại ADB Server"] = ("ADB 서버 재시작", "Restart ADB Server"),
+        ["Lệnh ADB Console..."] = ("ADB 콘솔 명령...", "ADB Console..."),
+        ["Help"] = ("도움말", "Help"),
+        ["Hướng dẫn sử dụng"] = ("사용 안내", "User Guide"),
+        ["Thông tin phiên bản"] = ("버전 정보", "About"),
+
+        // Headers
+        ["Nhật Ký Thực Thi Thời Gian Thực (Live Log)"] = ("실시간 실행 로그 (Live Log)", "Real-time Execution Live Log")
+    };
+
+    /// <summary>
+    /// Dịch chuỗi giao diện người dùng theo ngôn ngữ chỉ định hoặc ngôn ngữ hiện tại.
+    /// </summary>
+    public static string Translate(string text, AppLanguage? language = null)
+    {
+        var lang = language ?? CurrentLanguage;
+        if (lang == AppLanguage.Vietnamese || string.IsNullOrWhiteSpace(text))
+        {
+            return text;
+        }
+
+        if (UiTranslations.TryGetValue(text, out var entry))
+        {
+            return lang == AppLanguage.Korean ? entry.Kr : entry.En;
+        }
+
+        string trimmed = text.Trim();
+        if (UiTranslations.TryGetValue(trimmed, out entry))
+        {
+            string translated = lang == AppLanguage.Korean ? entry.Kr : entry.En;
+            return text.Replace(trimmed, translated);
+        }
+
+        return text;
+    }
 }

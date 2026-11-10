@@ -8,7 +8,8 @@ public static class AndroidLocators
     public const string PackageYouTube = "com.google.android.youtube";
 
     // Thanh tìm kiếm
-    public const string SearchButtonId = "com.google.android.youtube:id/menu_item_view";
+    public const string SearchButtonId = "com.google.android.youtube:id/menu_search";
+    public const string SearchMenuItemViewId = "com.google.android.youtube:id/menu_item_view";
     public const string SearchEditTextId = "com.google.android.youtube:id/search_edit_text";
     public const string SearchClearId = "com.google.android.youtube:id/search_clear_button";
 

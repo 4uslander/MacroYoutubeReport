@@ -129,12 +129,23 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         var device = EnsureDevice();
         await EnsureAppReadyAsync(ct).ConfigureAwait(false);
 
-        for (int retry = 0; retry < 3; retry++)
+        for (int retry = 0; retry < 4; retry++)
         {
             var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             if (doc != null)
             {
-                var homeNode = doc.SelectSingleNode("//node[contains(@content-desc, '홈') or contains(@content-desc, 'Trang chủ') or contains(@content-desc, 'Home')]");
+                // Nếu đang bị kẹt ở màn hình Thông báo (알림 / Notifications)
+                bool isNotificationsScreen = doc.SelectSingleNode("//node[@text='알림' or @text='Notifications' or @text='Thông báo']") != null
+                    && doc.SelectSingleNode("//node[contains(@content-desc, '홈') or contains(@content-desc, 'Home')]") == null;
+
+                if (isNotificationsScreen)
+                {
+                    await AdbClientGeneral.Instance.PressBackAsync(device, ct).ConfigureAwait(false);
+                    await Task.Delay(1000, ct).ConfigureAwait(false);
+                    continue;
+                }
+
+                var homeNode = doc.SelectSingleNode("//node[(contains(@content-desc, '홈') or contains(@content-desc, 'Trang chủ') or contains(@content-desc, 'Home')) and not(contains(@content-desc, '알림'))]");
                 if (homeNode != null)
                 {
                     var elem = AdbUiXmlDumper.ParseElement(homeNode);
@@ -158,34 +169,80 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         var device = EnsureDevice();
         await EnsureAppReadyAsync(ct).ConfigureAwait(false);
 
-        bool tappedSearch = false;
+        // 1. Kiểm tra nếu ô tìm kiếm (search_edit_text) đã mở sẵn thì không cần bấm nút tìm kiếm
         var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-        if (doc != null)
+        var searchInputNode = doc?.SelectSingleNode("//node[@resource-id='com.google.android.youtube:id/search_edit_text']");
+
+        if (searchInputNode == null)
         {
-            var searchNode = doc.SelectSingleNode("//node[@resource-id='com.google.android.youtube:id/menu_item_view' or contains(@content-desc, 'Search') or contains(@content-desc, 'Tìm kiếm') or contains(@content-desc, '검색')]");
-            if (searchNode != null)
+            // 2. Kiểm tra nếu đang bị kẹt ở màn hình 알림 (Thông báo) -> bấm Back để về Home
+            if (doc?.SelectSingleNode("//node[@text='알림' or @text='Notifications' or @text='Thông báo']") != null)
             {
-                var elem = AdbUiXmlDumper.ParseElement(searchNode);
-                if (elem != null)
+                await AdbClientGeneral.Instance.PressBackAsync(device, ct).ConfigureAwait(false);
+                await Task.Delay(1000, ct).ConfigureAwait(false);
+                doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            }
+
+            bool tappedSearch = false;
+            if (doc != null)
+            {
+                // Chọn CHÍNH XÁC nút Tìm kiếm (Loại trừ tuyệt đối nút 알림 / Notifications)
+                var searchNode = doc.SelectSingleNode(
+                    "//node[not(contains(@content-desc, '알림') or contains(@content-desc, 'Notification') or contains(@content-desc, 'Thông báo')) and " +
+                    "(@content-desc='검색' or @content-desc='Search' or @content-desc='Tìm kiếm' or " +
+                    "contains(@content-desc, '검색') or contains(@content-desc, 'Search') or contains(@content-desc, 'Tìm kiếm') or " +
+                    "@resource-id='com.google.android.youtube:id/menu_search' or " +
+                    "(ancestor::node[@resource-id='com.google.android.youtube:id/menu_item_1'] and @resource-id='com.google.android.youtube:id/menu_item_view'))]");
+
+                if (searchNode != null)
                 {
-                    await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
-                    tappedSearch = true;
+                    var elem = AdbUiXmlDumper.ParseElement(searchNode);
+                    if (elem != null)
+                    {
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                        tappedSearch = true;
+                    }
+                }
+            }
+
+            if (!tappedSearch)
+            {
+                // Fallback: Nút Tìm kiếm trên YouTube Android luôn nằm ở góc trên bên phải (X ~ 94%, Y ~ 5%)
+                int sx = (int)(_screenResolution.Width * 0.94);
+                int sy = (int)(_screenResolution.Height * 0.05);
+                await AdbClientGeneral.Instance.TapAsync(device, sx, sy, ct).ConfigureAwait(false);
+            }
+
+            // Đợi ô nhập xuất hiện
+            for (int i = 0; i < 6; i++)
+            {
+                await Task.Delay(500, ct).ConfigureAwait(false);
+                var checkDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+                if (checkDoc?.SelectSingleNode("//node[@resource-id='com.google.android.youtube:id/search_edit_text']") != null)
+                {
+                    break;
                 }
             }
         }
 
-        if (!tappedSearch)
+        // 3. Xóa từ khóa cũ nếu có nút Clear
+        var clearDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+        var clearBtn = clearDoc?.SelectSingleNode("//node[@resource-id='com.google.android.youtube:id/search_clear_button']");
+        if (clearBtn != null)
         {
-            int sx = (int)(_screenResolution.Width * 0.85);
-            int sy = (int)(_screenResolution.Height * 0.05);
-            await AdbClientGeneral.Instance.TapAsync(device, sx, sy, ct).ConfigureAwait(false);
+            var clearElem = AdbUiXmlDumper.ParseElement(clearBtn);
+            if (clearElem != null)
+            {
+                await AdbUiXmlDumper.Instance.TapElementAsync(device, clearElem, ct).ConfigureAwait(false);
+                await Task.Delay(300, ct).ConfigureAwait(false);
+            }
         }
 
-        await Task.Delay(1200, ct).ConfigureAwait(false);
-
+        // 4. Nhập từ khóa qua LaiXi/AdbIME
         await AdbImeHelper.InputTextAsync(device, keyword, ct).ConfigureAwait(false);
         await Task.Delay(800, ct).ConfigureAwait(false);
 
+        // 5. Gửi phím Enter (Search action)
         await AdbClientGeneral.Instance.SendKeyEventAsync(device, 66, ct).ConfigureAwait(false);
         await Task.Delay(2500, ct).ConfigureAwait(false);
     }

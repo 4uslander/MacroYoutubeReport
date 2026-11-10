@@ -12,7 +12,8 @@ public class DriverLocatorsTests
     {
         Assert.Equal("com.google.android.youtube", AndroidLocators.PackageYouTube);
         Assert.Contains("player_settings_button", AndroidLocators.PlayerSettingsGearId);
-        Assert.Contains("menu_item_view", AndroidLocators.SearchButtonId);
+        Assert.Contains("menu_search", AndroidLocators.SearchButtonId);
+        Assert.Contains("menu_item_view", AndroidLocators.SearchMenuItemViewId);
     }
 
     [Fact]

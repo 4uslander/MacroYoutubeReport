@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using MacroYoutubeReport.Core.Enums;
 using MacroYoutubeReport.Core.Localization;
 using MacroYoutubeReport.Core.Models;
@@ -52,13 +53,96 @@ public partial class MainForm : Form, IMainView
             if (ViewLoaded != null) await ViewLoaded.Invoke();
         };
 
-        // Platform & Connect
+        // 1. Menu Strip Operations
+        this.tsmiOpenLogFolder.Click += (_, _) =>
+        {
+            try
+            {
+                string logDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MacroYoutubeReport", "logs");
+                Directory.CreateDirectory(logDir);
+                Process.Start(new ProcessStartInfo { FileName = logDir, UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Lỗi mở thư mục Logs: {ex.Message}", "WARN");
+            }
+        };
+
+        this.tsmiExportHistory.Click += (_, _) => btnActionExportCsv.PerformClick();
+        this.tsmiImportAccounts.Click += (_, _) => btnSelectMailFile.PerformClick();
+        this.tsmiImportProxies.Click += (_, _) => btnSelectProxyFile.PerformClick();
+        this.tsmiExit.Click += (_, _) => this.Close();
+
+        this.tsmiClearCache.Click += async (_, _) =>
+        {
+            AppendLog("Đang gửi lệnh dọn bộ nhớ cache ứng dụng YouTube trên các thiết bị...", "INFO");
+            try
+            {
+                var devices = await AdbDeviceManager.Instance.ScanDevicesAsync();
+                foreach (var dev in devices)
+                {
+                    await AdbClientGeneral.Instance.ExecuteShellAsync(dev.RawDevice, "pm clear com.google.android.youtube");
+                    AppendLog($"Đã dọn cache YouTube trên thiết bị [{dev.Serial}]", "SUCCESS");
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Lỗi dọn cache: {ex.Message}", "WARN");
+            }
+        };
+
+        this.tsmiRestartAdb.Click += async (_, _) =>
+        {
+            AppendLog("Đang khởi động lại ADB Server...", "WARN");
+            try
+            {
+                await Task.Run(() => AdbServerManager.Instance.EnsureServerRunning());
+                AppendLog("ADB Server đã được khởi động lại thành công.", "SUCCESS");
+                if (ScanDevicesRequested != null) await ScanDevicesRequested.Invoke();
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Lỗi khởi động lại ADB: {ex.Message}", "ERROR");
+            }
+        };
+
+        this.tsmiAdbCmd.Click += (_, _) =>
+        {
+            AppendLog("ADB Console: Gõ lệnh shell trực tiếp thông qua cửa sổ điều khiển hoặc công cụ mở rộng.", "INFO");
+            ShowNotification("Tính năng ADB Console: Bạn có thể kiểm tra danh sách thiết bị bằng nút 'Quét gom TCP' hoặc 'Quét thiết bị'.");
+        };
+
+        // Language items
+        this.tsmiLangVi.Click += (_, _) => SwitchLanguage(AppLanguage.Vietnamese);
+        this.tsmiLangKr.Click += (_, _) => SwitchLanguage(AppLanguage.Korean);
+        this.tsmiLangEn.Click += (_, _) => SwitchLanguage(AppLanguage.English);
+
+        // Help items
+        this.tsmiUserGuide.Click += (_, _) =>
+        {
+            ShowNotification(
+                "HƯỚNG DẪN SỬ DỤNG MACRO YOUTUBE REPORT:\n\n" +
+                "1. Chọn nền tảng thực thi (Android ADB hoặc Chrome Playwright).\n" +
+                "2. Thêm mục tiêu cần báo cáo (Video, Kênh, Shorts) hoặc bấm 'Nhập file' từ text.\n" +
+                "3. Thiết lập tiêu chí: Lý do vi phạm, thời gian xem video giả lập người thật, thời gian nghỉ.\n" +
+                "4. Trong danh sách thiết bị bên dưới, tích chọn các thiết bị sẽ tham gia chạy.\n" +
+                "5. Nhấn 'Bắt đầu' để chạy toàn bộ hoặc bấm 'Bắt đầu' trên từng hàng tác vụ.\n" +
+                "6. Theo dõi tiến trình thời gian thực trong bảng Nhật ký trực tiếp.",
+                isError: false);
+        };
+
+        this.tsmiAbout.Click += (_, _) =>
+        {
+            ShowNotification("YouTube Auto Report Macro v1.0.0\nPhát triển chuyên dụng cho tự động hóa mô phỏng tương tác người thật.", isError: false);
+        };
+
+        // 2. Platform & Connect
         this.btnConnectDevices.Click += async (_, _) =>
         {
             if (ScanDevicesRequested != null) await ScanDevicesRequested.Invoke();
         };
 
-        // Start & Stop
+        // 3. Start & Stop
         this.btnStart.Click += async (_, _) =>
         {
             if (StartBatchRequested != null) await StartBatchRequested.Invoke();
@@ -74,7 +158,7 @@ public partial class MainForm : Form, IMainView
             this.Close();
         };
 
-        // File selectors
+        // 4. File selectors
         this.btnSelectMailFile.Click += (_, _) =>
         {
             using var ofd = new OpenFileDialog { Filter = "Text File (*.txt)|*.txt|All Files (*.*)|*.*" };
@@ -95,7 +179,7 @@ public partial class MainForm : Form, IMainView
             }
         };
 
-        // Target operations
+        // 5. Target Input & Operations
         this.btnAddTarget.Click += (_, _) =>
         {
             var targetType = cmbTargetType.SelectedIndex switch
@@ -155,7 +239,53 @@ public partial class MainForm : Form, IMainView
             }
         };
 
-        // Top Quick Actions
+        // 6. Action Column Clicks on Tasks Grid (Bắt đầu, Khởi động lại, Dừng, Xóa)
+        this.dgvTasks.CellContentClick += async (s, e) =>
+        {
+            if (e.RowIndex < 0 || e.RowIndex >= _targets.Count) return;
+
+            string colName = dgvTasks.Columns[e.ColumnIndex].Name;
+            var target = _targets[e.RowIndex];
+
+            if (colName == "COL_ACTION_START")
+            {
+                AppendLog($"[Tác vụ #{e.RowIndex + 1}] Bắt đầu thực thi: {target.VideoTitle ?? target.Keyword}", "INFO");
+                if (StartBatchRequested != null) await StartBatchRequested.Invoke();
+            }
+            else if (colName == "COL_ACTION_RESTART")
+            {
+                target.ReportsCompleted = 0;
+                RefreshTargetsGrid();
+                AppendLog($"[Tác vụ #{e.RowIndex + 1}] Đã khởi động lại mục tiêu: {target.VideoTitle ?? target.Keyword}", "INFO");
+                if (StartBatchRequested != null) await StartBatchRequested.Invoke();
+            }
+            else if (colName == "COL_ACTION_STOP")
+            {
+                AppendLog($"[Tác vụ #{e.RowIndex + 1}] Dừng mục tiêu: {target.VideoTitle ?? target.Keyword}", "WARN");
+                StopBatchRequested?.Invoke();
+            }
+            else if (colName == "COL_ACTION_DEL")
+            {
+                lock (_targets)
+                {
+                    _targets.RemoveAt(e.RowIndex);
+                }
+                RefreshTargetsGrid();
+                AppendLog($"Đã xóa mục tiêu tại dòng #{e.RowIndex + 1}", "INFO");
+            }
+        };
+
+        // 7. Click Checkbox on Devices Grid (Bật/tắt chọn thiết bị)
+        this.dgvDevices.CellContentClick += (s, e) =>
+        {
+            if (e.RowIndex >= 0 && dgvDevices.Columns[e.ColumnIndex].Name == "DEV_SEL")
+            {
+                dgvDevices.CommitEdit(DataGridViewDataErrorContexts.Commit);
+                UpdateSelectedDevicesRatio();
+            }
+        };
+
+        // 8. Top Quick Actions
         this.btnActionHome.Click += async (_, _) =>
         {
             if (RefreshHistoryRequested != null) await RefreshHistoryRequested.Invoke();
@@ -175,22 +305,22 @@ public partial class MainForm : Form, IMainView
 
         this.btnActionCheckAccount.Click += (_, _) =>
         {
-            AppendLog("Đang kiểm tra trạng thái tài khoản...", "INFO");
+            AppendLog("Đang kiểm tra tính hợp lệ của tài khoản...", "INFO");
         };
 
         this.btnActionCheckYoutube.Click += (_, _) =>
         {
-            AppendLog("Kiểm tra ứng dụng YouTube trên các thiết bị...", "INFO");
+            AppendLog("Đang kiểm tra ứng dụng YouTube trên các thiết bị...", "INFO");
         };
 
         this.btnActionReallocate.Click += (_, _) =>
         {
-            AppendLog("Đang phân bổ lại tài khoản cho các thiết bị...", "INFO");
+            AppendLog("Đang phân bổ lại tài khoản và proxy cho danh sách thiết bị...", "INFO");
         };
 
         this.btnActionResetCache.Click += (_, _) =>
         {
-            AppendLog("Đã xóa bộ nhớ đệm tạm thời.", "INFO");
+            tsmiClearCache.PerformClick();
         };
 
         this.btnActionScanTcp.Click += async (_, _) =>
@@ -222,12 +352,89 @@ public partial class MainForm : Form, IMainView
             AppendLog("Đã dọn dẹp các tác vụ hoàn thành khỏi danh sách.", "INFO");
         };
 
-        // Filter Actions
+        // 9. Middle Filter & Task Reordering Actions
         this.btnSelectAllTasks.Click += (_, _) =>
+        {
+            // Toggle check all devices
+            bool hasUnchecked = false;
+            foreach (DataGridViewRow row in dgvDevices.Rows)
+            {
+                if (!Convert.ToBoolean(row.Cells["DEV_SEL"].Value ?? false))
+                {
+                    hasUnchecked = true;
+                    break;
+                }
+            }
+
+            foreach (DataGridViewRow row in dgvDevices.Rows)
+            {
+                row.Cells["DEV_SEL"].Value = hasUnchecked;
+            }
+            UpdateSelectedDevicesRatio();
+        };
+
+        this.btnCheckAll.Click += (_, _) =>
         {
             foreach (DataGridViewRow row in dgvTasks.Rows)
             {
                 row.Selected = true;
+            }
+        };
+
+        this.btnMoveUp.Click += (_, _) => MoveSelectedTask(-1);
+        this.btnMoveDown.Click += (_, _) => MoveSelectedTask(1);
+
+        this.btnFind.Click += (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(txtKeyword.Text))
+            {
+                string kw = txtKeyword.Text.Trim();
+                foreach (DataGridViewRow row in dgvTasks.Rows)
+                {
+                    string targetKw = row.Cells["COL_KEYWORD"].Value?.ToString() ?? "";
+                    if (targetKw.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                    {
+                        row.Selected = true;
+                        dgvTasks.FirstDisplayedScrollingRowIndex = row.Index;
+                        break;
+                    }
+                }
+            }
+        };
+
+        this.btnRemoveDup.Click += (_, _) =>
+        {
+            lock (_targets)
+            {
+                var distinct = _targets
+                    .GroupBy(t => t.TargetUrl ?? t.Keyword)
+                    .Select(g => g.First())
+                    .ToList();
+                int removed = _targets.Count - distinct.Count;
+                _targets.Clear();
+                _targets.AddRange(distinct);
+                AppendLog($"Đã loại bỏ {removed} mục tiêu trùng lặp.", "INFO");
+            }
+            RefreshTargetsGrid();
+        };
+
+        this.btnDuplicate.Click += (_, _) =>
+        {
+            if (dgvTasks.CurrentRow != null && dgvTasks.CurrentRow.Index >= 0)
+            {
+                int idx = dgvTasks.CurrentRow.Index;
+                if (idx < _targets.Count)
+                {
+                    var orig = _targets[idx];
+                    var copy = new ReportTargetItem(orig.Keyword, orig.ChannelName, orig.VideoTitle)
+                    {
+                        TargetType = orig.TargetType,
+                        TargetUrl = orig.TargetUrl,
+                        MaxReportsRequired = orig.MaxReportsRequired
+                    };
+                    AddTargetItem(copy);
+                    AppendLog("Đã nhân bản dòng tác vụ đã chọn.", "INFO");
+                }
             }
         };
 
@@ -236,13 +443,55 @@ public partial class MainForm : Form, IMainView
         this.rdoFilterRunning.CheckedChanged += (_, _) => ApplyTaskFilter();
         this.rdoFilterFailed.CheckedChanged += (_, _) => ApplyTaskFilter();
         this.cmbFilterType.SelectedIndexChanged += (_, _) => ApplyTaskFilter();
+    }
 
-        // Menu strip
-        this.tsmiExportHistory.Click += (_, _) => btnActionExportCsv.PerformClick();
-        this.tsmiExit.Click += (_, _) => this.Close();
-        this.tsmiLangVi.Click += (_, _) => UiLanguageManager.CurrentLanguage = AppLanguage.Vietnamese;
-        this.tsmiLangKr.Click += (_, _) => UiLanguageManager.CurrentLanguage = AppLanguage.Korean;
-        this.tsmiLangEn.Click += (_, _) => UiLanguageManager.CurrentLanguage = AppLanguage.English;
+    private void SwitchLanguage(AppLanguage lang)
+    {
+        UiLanguageManager.CurrentLanguage = lang;
+        tsmiLangVi.Checked = lang == AppLanguage.Vietnamese;
+        tsmiLangKr.Checked = lang == AppLanguage.Korean;
+        tsmiLangEn.Checked = lang == AppLanguage.English;
+
+        string langName = lang switch
+        {
+            AppLanguage.Korean => "한국어",
+            AppLanguage.English => "English",
+            _ => "Tiếng Việt"
+        };
+        AppendLog($"Đã chuyển ngôn ngữ sang: {langName}", "INFO");
+    }
+
+    private void MoveSelectedTask(int direction)
+    {
+        if (dgvTasks.CurrentRow == null) return;
+        int idx = dgvTasks.CurrentRow.Index;
+        int targetIdx = idx + direction;
+
+        lock (_targets)
+        {
+            if (targetIdx >= 0 && targetIdx < _targets.Count)
+            {
+                var item = _targets[idx];
+                _targets.RemoveAt(idx);
+                _targets.Insert(targetIdx, item);
+                RefreshTargetsGrid();
+                dgvTasks.Rows[targetIdx].Selected = true;
+            }
+        }
+    }
+
+    private void UpdateSelectedDevicesRatio()
+    {
+        int selected = 0;
+        int total = dgvDevices.Rows.Count;
+        foreach (DataGridViewRow row in dgvDevices.Rows)
+        {
+            if (Convert.ToBoolean(row.Cells["DEV_SEL"].Value ?? false))
+            {
+                selected++;
+            }
+        }
+        lblTaskCountRatio.Text = $"{selected}/{total}";
     }
 
     private void ApplyTaskFilter()
@@ -253,13 +502,7 @@ public partial class MainForm : Form, IMainView
             if (row.IsNewRow) continue;
             bool visible = true;
 
-            string rowType = row.Cells["COL_TYPE"].Value?.ToString() ?? string.Empty;
             string rowStatus = row.Cells["COL_STATUS"].Value?.ToString() ?? string.Empty;
-
-            if (typeFilter != "Tất cả" && !rowType.Equals(typeFilter, StringComparison.OrdinalIgnoreCase))
-            {
-                visible = false;
-            }
 
             if (rdoFilterDone.Checked && rowStatus != "Hoàn thành") visible = false;
             if (rdoFilterRunning.Checked && rowStatus != "Đang chạy") visible = false;
@@ -332,15 +575,28 @@ public partial class MainForm : Form, IMainView
         dgvTasks.Rows.Clear();
         lock (_targets)
         {
-            int stt = 1;
+            int devCount = dgvDevices.Rows.Count > 0 ? dgvDevices.Rows.Count : 1;
             foreach (var t in _targets)
             {
                 string interval = $"{numMinWatch.Value}-{numMaxWatch.Value}s";
                 string progress = $"{t.ReportsCompleted}/{t.MaxReportsRequired}";
                 string status = t.ReportsCompleted >= t.MaxReportsRequired ? "Hoàn thành" : "Chờ xử lý";
-                dgvTasks.Rows.Add(stt++, t.TargetType.ToString(), t.Keyword, t.ChannelName ?? string.Empty, t.VideoTitle ?? string.Empty, t.TargetUrl ?? string.Empty, interval, progress, status);
+                dgvTasks.Rows.Add(
+                    "Bắt đầu",
+                    "Khởi động lại",
+                    "Dừng",
+                    "Xóa",
+                    devCount.ToString(),
+                    t.Keyword,
+                    t.ChannelName ?? string.Empty,
+                    t.VideoTitle ?? string.Empty,
+                    t.TargetUrl ?? string.Empty,
+                    interval,
+                    true,
+                    true,
+                    progress,
+                    status);
             }
-            lblTaskCountRatio.Text = $"0/{_targets.Count}";
         }
     }
 
@@ -415,10 +671,21 @@ public partial class MainForm : Form, IMainView
         }
 
         dgvDevices.Rows.Clear();
+        int stt = 1;
         foreach (var dev in devices)
         {
-            dgvDevices.Rows.Add(false, dev.Serial, dev.Model, "Chưa gán", "Direct", "Đang rảnh", dev.Status);
+            dgvDevices.Rows.Add(
+                true, // Default selected (checked)
+                stt++,
+                "127.0.0.1",
+                dev.Serial,
+                dev.Model,
+                "Chưa gán",
+                "••••••",
+                "Đang rảnh",
+                dev.Status.ToString());
         }
+        UpdateSelectedDevicesRatio();
     }
 
     public void SetChromeProfiles(IReadOnlyList<string> profiles)
@@ -478,9 +745,7 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
-        lblStatusSummary.Text = $"Chờ: {pendingCount} | Chạy: {runningCount} | Xong: {completedCount} | Lỗi: {failedCount}";
-        int total = _targets.Count;
-        lblTaskCountRatio.Text = $"{completedCount}/{total}";
+        lblStatusSummary.Text = $"{pendingCount}/{runningCount}/{completedCount} - 0/{failedCount}";
     }
 
     public void AppendLog(string message, string level = "INFO")
@@ -493,15 +758,15 @@ public partial class MainForm : Form, IMainView
 
         Color color = level switch
         {
-            "SUCCESS" => Color.FromArgb(100, 255, 100),
-            "WARN" => Color.FromArgb(255, 215, 0),
-            "ERROR" => Color.FromArgb(255, 100, 100),
-            _ => Color.FromArgb(220, 220, 220)
+            "SUCCESS" => Color.FromArgb(25, 135, 84), // Emerald green
+            "WARN" => Color.FromArgb(217, 119, 6),    // Amber/Orange
+            "ERROR" => Color.FromArgb(220, 53, 69),   // Crimson Red
+            _ => Color.FromArgb(33, 37, 41)           // Dark charcoal
         };
 
         rtbLiveLog.SelectionStart = rtbLiveLog.TextLength;
         rtbLiveLog.SelectionLength = 0;
-        rtbLiveLog.SelectionColor = Color.FromArgb(140, 140, 140);
+        rtbLiveLog.SelectionColor = Color.FromArgb(120, 120, 120);
         rtbLiveLog.AppendText($"[{DateTime.Now:HH:mm:ss}] ");
 
         rtbLiveLog.SelectionColor = color;

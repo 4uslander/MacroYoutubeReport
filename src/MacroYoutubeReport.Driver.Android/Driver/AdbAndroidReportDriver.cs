@@ -247,6 +247,287 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         await Task.Delay(2500, ct).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Áp dụng bộ lọc tìm kiếm nâng cao (Phân loại, Độ dài, Ngày tải lên, Live, v.v.) theo cấu hình AutoYouTube.
+    /// Tự động bấm nút '옵션 더보기' -> chọn '검색 필터' -> chọn các tiêu chí -> bấm '적용'.
+    /// </summary>
+    public async Task<bool> ApplySearchFilterAsync(SearchFilterConfig? filter = null, CancellationToken ct = default)
+    {
+        filter ??= new SearchFilterConfig();
+        if (!filter.HasActiveFilter())
+        {
+            return true;
+        }
+
+        var device = EnsureDevice();
+
+        try
+        {
+            // 1. Chờ kết quả tìm kiếm ổn định
+            await Task.Delay(1500, ct).ConfigureAwait(false);
+
+            var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (doc == null) return false;
+
+            // 2. Tìm nút "옵션 더보기" (More options) ở góc trên bên phải trang tìm kiếm
+            var moreOptionsNode = doc.SelectSingleNode(
+                "//node[(@content-desc='옵션 더보기' or @content-desc='More options' or @content-desc='Tùy chọn khác' or @content-desc='Thêm tùy chọn' or " +
+                "contains(@content-desc, '옵션 더보기') or contains(@content-desc, 'More options')) and @clickable='true']");
+
+            if (moreOptionsNode != null)
+            {
+                var elem = AdbUiXmlDumper.ParseElement(moreOptionsNode);
+                if (elem != null)
+                {
+                    await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                // Fallback bấm góc trên cùng bên phải (X ~ 95%, Y ~ 7.5%)
+                int fx = (int)(_screenResolution.Width * 0.95);
+                int fy = (int)(_screenResolution.Height * 0.075);
+                await AdbClientGeneral.Instance.TapAsync(device, fx, fy, ct).ConfigureAwait(false);
+            }
+
+            await Task.Delay(1000, ct).ConfigureAwait(false);
+
+            // 3. Tìm và bấm menu "검색 필터" (Search filters)
+            var menuDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            var filterMenuNode = menuDoc?.SelectSingleNode(
+                "//node[@text='검색 필터' or @text='Search filters' or @text='Bộ lọc tìm kiếm' or @text='Bộ lọc' or " +
+                "contains(@text, '검색 필터') or contains(@text, 'Search filters') or contains(@text, 'Bộ lọc')]");
+
+            if (filterMenuNode != null)
+            {
+                var elem = AdbUiXmlDumper.ParseElement(filterMenuNode);
+                if (elem != null)
+                {
+                    await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                // Fallback vị trí menu popup thông thường
+                int mx = (int)(_screenResolution.Width * 0.72);
+                int my = (int)(_screenResolution.Height * 0.08);
+                await AdbClientGeneral.Instance.TapAsync(device, mx, my, ct).ConfigureAwait(false);
+            }
+
+            await Task.Delay(1200, ct).ConfigureAwait(false);
+
+            // 4. Màn hình bảng cài đặt bộ lọc "검색 필터"
+            var dialogDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (dialogDoc == null) return false;
+
+            // 4.1. Lọc theo Phân loại (Type) nếu khác All
+            if (filter.Type != SearchTypeFilter.All)
+            {
+                string typeTargetText = filter.Type switch
+                {
+                    SearchTypeFilter.Video => "동영상",
+                    SearchTypeFilter.Channel => "채널",
+                    SearchTypeFilter.Playlist => "재생목록",
+                    SearchTypeFilter.Movie => "영화",
+                    _ => string.Empty
+                };
+                if (!string.IsNullOrEmpty(typeTargetText))
+                {
+                    await SelectDropdownOptionAsync(device, "구분", typeTargetText, ct).ConfigureAwait(false);
+                    dialogDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+                }
+            }
+
+            // 4.2. Lọc theo Độ dài (Duration) nếu khác All
+            if (filter.Duration != SearchDurationFilter.All)
+            {
+                string durTargetText = filter.Duration switch
+                {
+                    SearchDurationFilter.Short => "4분 미만",
+                    SearchDurationFilter.Medium => "4~20분",
+                    SearchDurationFilter.Long => "20분 초과",
+                    _ => string.Empty
+                };
+                if (!string.IsNullOrEmpty(durTargetText))
+                {
+                    await SelectDropdownOptionAsync(device, "길이", durTargetText, ct).ConfigureAwait(false);
+                    dialogDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+                }
+            }
+
+            // 4.3. Lọc theo Ngày tải lên (UploadDate)
+            if (filter.UploadDate != SearchUploadDateFilter.All)
+            {
+                string dateTargetText = filter.UploadDate switch
+                {
+                    SearchUploadDateFilter.Today => "오늘",
+                    SearchUploadDateFilter.LastHour => "지난 1시간",
+                    SearchUploadDateFilter.ThisWeek => "이번 주",
+                    SearchUploadDateFilter.ThisMonth => "이번 달",
+                    SearchUploadDateFilter.ThisYear => "올해",
+                    _ => string.Empty
+                };
+                if (!string.IsNullOrEmpty(dateTargetText))
+                {
+                    await SelectDropdownOptionAsync(device, "업로드 날짜", dateTargetText, ct).ConfigureAwait(false);
+                    dialogDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+                }
+            }
+
+            // 4.4. Lọc theo Ưu tiên (SortBy)
+            if (filter.SortBy != SearchSortByFilter.Relevance)
+            {
+                string sortTargetText = filter.SortBy switch
+                {
+                    SearchSortByFilter.UploadDate => "업로드 날짜",
+                    SearchSortByFilter.ViewCount => "조회수",
+                    SearchSortByFilter.Rating => "평점",
+                    _ => string.Empty
+                };
+                if (!string.IsNullOrEmpty(sortTargetText))
+                {
+                    await SelectDropdownOptionAsync(device, "우선순위", sortTargetText, ct).ConfigureAwait(false);
+                    dialogDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+                }
+            }
+
+            // 4.5. Xử lý các Chip tính năng (Live, 4K, Phụ đề, Commons)
+            if (dialogDoc != null)
+            {
+                if (filter.LiveOnly)
+                {
+                    await ToggleChipFilterAsync(device, dialogDoc, "라이브", "Live", ct).ConfigureAwait(false);
+                }
+                if (filter.FourKOnly)
+                {
+                    await ToggleChipFilterAsync(device, dialogDoc, "4K", "4K", ct).ConfigureAwait(false);
+                }
+                if (filter.SubtitlesOnly)
+                {
+                    await ToggleChipFilterAsync(device, dialogDoc, "자막", "Subtitles", ct).ConfigureAwait(false);
+                }
+                if (filter.CommonsOnly)
+                {
+                    await ToggleChipFilterAsync(device, dialogDoc, "크리에이티브 커먼즈", "Creative Commons", ct).ConfigureAwait(false);
+                }
+            }
+
+            await Task.Delay(500, ct).ConfigureAwait(false);
+
+            // 5. Bấm nút "적용" (Apply)
+            var applyDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            var applyNode = applyDoc?.SelectSingleNode(
+                "//node[@resource-id='com.google.android.youtube:id/apply' or @text='적용' or @text='Apply' or @content-desc='적용' or @content-desc='Apply']");
+
+            if (applyNode != null)
+            {
+                var elem = AdbUiXmlDumper.ParseElement(applyNode);
+                if (elem != null)
+                {
+                    await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                // Fallback vị trí nút 적용 ở góc dưới bên phải dialog (X ~ 79%, Y ~ 86%)
+                int ax = (int)(_screenResolution.Width * 0.79);
+                int ay = (int)(_screenResolution.Height * 0.86);
+                await AdbClientGeneral.Instance.TapAsync(device, ax, ay, ct).ConfigureAwait(false);
+            }
+
+            // Chờ kết quả tìm kiếm đã lọc hiển thị
+            await Task.Delay(2500, ct).ConfigureAwait(false);
+            return true;
+        }
+        catch
+        {
+            // Nếu có lỗi khi bật filter, không làm sập luồng mà tiếp tục tìm kiếm
+            return false;
+        }
+    }
+
+    private async Task SelectDropdownOptionAsync(DeviceData device, string labelText, string optionText, CancellationToken ct)
+    {
+        try
+        {
+            var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (doc == null) return;
+
+            // Tìm node nhãn tiêu đề (ví dụ '업로드 날짜')
+            var labelNode = doc.SelectSingleNode($"//node[@text='{labelText}']");
+            if (labelNode != null)
+            {
+                // Nút dropdown giá trị thường nằm trên cùng một hàng (cùng parent hoặc kế tiếp)
+                var dropdownNode = labelNode.ParentNode?.SelectSingleNode(".//node[@clickable='true' and @text!='']")
+                                   ?? labelNode.SelectSingleNode($"following-sibling::node[@clickable='true']");
+
+                if (dropdownNode != null)
+                {
+                    string currentVal = dropdownNode.Attributes?["text"]?.Value ?? string.Empty;
+                    if (currentVal.Equals(optionText, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return; // Đã là giá trị này rồi
+                    }
+
+                    var dropElem = AdbUiXmlDumper.ParseElement(dropdownNode);
+                    if (dropElem != null)
+                    {
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, dropElem, ct).ConfigureAwait(false);
+                        await Task.Delay(800, ct).ConfigureAwait(false);
+
+                        // Sau khi bấm mở danh sách chọn, tìm node có optionText và bấm
+                        var optionsDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+                        var targetOption = optionsDoc?.SelectSingleNode($"//node[@text='{optionText}']");
+                        if (targetOption != null)
+                        {
+                            var optElem = AdbUiXmlDumper.ParseElement(targetOption);
+                            if (optElem != null)
+                            {
+                                await AdbUiXmlDumper.Instance.TapElementAsync(device, optElem, ct).ConfigureAwait(false);
+                                await Task.Delay(600, ct).ConfigureAwait(false);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Bỏ qua lỗi chọn dropdown đơn lẻ
+        }
+    }
+
+    private async Task ToggleChipFilterAsync(DeviceData device, XmlDocument doc, string koreanText, string englishText, CancellationToken ct)
+    {
+        try
+        {
+            var chipNode = doc.SelectSingleNode(
+                $"//node[(@text='{koreanText}' or @text='{englishText}' or contains(@text, '{koreanText}') or contains(@content-desc, '{koreanText}')) and @clickable='true']");
+
+            if (chipNode != null)
+            {
+                string isSelected = chipNode.Attributes?["selected"]?.Value ?? "false";
+                string isChecked = chipNode.Attributes?["checked"]?.Value ?? "false";
+
+                // Nếu chưa chọn thì bấm chọn
+                if (!string.Equals(isSelected, "true", StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(isChecked, "true", StringComparison.OrdinalIgnoreCase))
+                {
+                    var elem = AdbUiXmlDumper.ParseElement(chipNode);
+                    if (elem != null)
+                    {
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                        await Task.Delay(400, ct).ConfigureAwait(false);
+                    }
+                }
+            }
+        }
+        catch
+        {
+            // Bỏ qua lỗi toggle chip
+        }
+    }
+
     public async Task<bool> SmartScrollAndSelectVideoAsync(ReportTargetItem target, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(target);
@@ -254,7 +535,8 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         string cleanTitle = target.VideoTitle?.TrimEnd('.', '…', ' ') ?? string.Empty;
 
-        int maxScrollAttempts = 10;
+        // Cơ chế AutoYouTube: Lướt liên tục (đến 50 lần) để tìm video mục tiêu
+        int maxScrollAttempts = 50;
         int midX = _screenResolution.Width / 2;
         int startY = (int)(_screenResolution.Height * 0.75);
         int endY = (int)(_screenResolution.Height * 0.28);
@@ -303,7 +585,7 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
             int duration = Random.Shared.Next(400, 650);
             await AdbClientGeneral.Instance.SwipeAsync(device, midX, startY, midX, endY, duration, ct).ConfigureAwait(false);
-            await Task.Delay(Random.Shared.Next(1200, 1800), ct).ConfigureAwait(false);
+            await Task.Delay(Random.Shared.Next(1000, 1500), ct).ConfigureAwait(false);
         }
 
         return false;

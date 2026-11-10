@@ -26,6 +26,11 @@ public sealed class ReportScenarioConfig
     public bool EnableNaturalEngagement { get; set; } = true;
 
     /// <summary>
+    /// Cấu hình bộ lọc tìm kiếm video chuẩn theo phong cách AutoYouTube.
+    /// </summary>
+    public SearchFilterConfig SearchFilter { get; set; } = new();
+
+    /// <summary>
     /// Cấu hình các tùy chọn tương tác tự nhiên.
     /// </summary>
     public NaturalEngagementOptions EngagementOptions { get; set; } = new();
@@ -236,6 +241,14 @@ public sealed class ReportScenarioConfig
         MaxWatchDurationSeconds = 45,
         EnableNaturalEngagement = true,
         RotateReasons = true,
+        SearchFilter = new SearchFilterConfig
+        {
+            LiveOnly = true,
+            UploadDate = SearchUploadDateFilter.Today,
+            ReSearchIfNotFound = true,
+            CheckLaixiKeyboard = true,
+            MaxScrollAttempts = 60
+        },
         ReasonPool = new()
         {
             new ReportReasonConfig(ReportReasonCategory.FinancialOrCryptoScam, "Livestream phát tán mô hình lừa đảo tài chính và tiền ảo giả mạo."),

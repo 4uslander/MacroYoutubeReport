@@ -740,11 +740,60 @@ public partial class MainForm : Form, IMainView
         }
     }
 
+    private SearchFilterConfig GetSearchFilterConfigFromUi()
+    {
+        return new SearchFilterConfig
+        {
+            Type = cmbSearchFilterType.SelectedIndex switch
+            {
+                1 => SearchTypeFilter.Video,
+                2 => SearchTypeFilter.Channel,
+                3 => SearchTypeFilter.Playlist,
+                4 => SearchTypeFilter.Movie,
+                _ => SearchTypeFilter.All
+            },
+            Duration = cmbSearchFilterDuration.SelectedIndex switch
+            {
+                1 => SearchDurationFilter.Short,
+                2 => SearchDurationFilter.Medium,
+                3 => SearchDurationFilter.Long,
+                _ => SearchDurationFilter.All
+            },
+            UploadDate = cmbSearchFilterUploadDate.SelectedIndex switch
+            {
+                1 => SearchUploadDateFilter.Today,
+                2 => SearchUploadDateFilter.LastHour,
+                3 => SearchUploadDateFilter.ThisWeek,
+                4 => SearchUploadDateFilter.ThisMonth,
+                5 => SearchUploadDateFilter.ThisYear,
+                _ => SearchUploadDateFilter.All
+            },
+            SortBy = cmbSearchFilterSortBy.SelectedIndex switch
+            {
+                1 => SearchSortByFilter.UploadDate,
+                2 => SearchSortByFilter.ViewCount,
+                3 => SearchSortByFilter.Rating,
+                _ => SearchSortByFilter.Relevance
+            },
+            LiveOnly = chkSearchFilterLive.Checked,
+            CommonsOnly = chkSearchFilterCommons.Checked,
+            SubtitlesOnly = chkSearchFilterSubtitles.Checked,
+            FourKOnly = chkSearchFilter4K.Checked,
+            RandomWatch = chkSearchFilterRandomWatch.Checked,
+            DirectUrlMode = chkSearchFilterDirectUrl.Checked,
+            AutoAllocateEmail = chkSearchFilterAutoEmail.Checked,
+            ReSearchIfNotFound = chkSearchFilterRetrySearch.Checked,
+            CheckLaixiKeyboard = chkSearchFilterLaixiKeyboard.Checked,
+            MaxScrollAttempts = 50
+        };
+    }
+
     public ReportScenarioConfig GetScenarioConfig()
     {
         string reasonFilePath = txtReasonFile.Text.Trim();
         string defaultPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configs", "report_reasons.txt");
         string fileToLoad = File.Exists(reasonFilePath) ? reasonFilePath : (File.Exists(defaultPath) ? defaultPath : string.Empty);
+        var searchFilter = GetSearchFilterConfigFromUi();
 
         if (cmbScenario.SelectedIndex == 5 || (cmbScenario.SelectedItem?.ToString()?.Contains("Livestream") == true))
         {
@@ -754,6 +803,7 @@ public partial class MainForm : Form, IMainView
             liveConfig.CooldownBetweenReportsSeconds = (int)numCooldown.Value;
             liveConfig.EnableNaturalEngagement = chkNaturalEngagement.Checked;
             liveConfig.RotateReasons = chkRotateReasons.Checked;
+            liveConfig.SearchFilter = searchFilter;
             if (!string.IsNullOrWhiteSpace(fileToLoad))
             {
                 liveConfig.LoadReasonTemplatesFromFile(fileToLoad);
@@ -768,7 +818,8 @@ public partial class MainForm : Form, IMainView
             MaxWatchDurationSeconds = (int)numMaxWatch.Value,
             CooldownBetweenReportsSeconds = (int)numCooldown.Value,
             EnableNaturalEngagement = chkNaturalEngagement.Checked,
-            RotateReasons = chkRotateReasons.Checked
+            RotateReasons = chkRotateReasons.Checked,
+            SearchFilter = searchFilter
         };
 
         if (!string.IsNullOrWhiteSpace(fileToLoad))
@@ -827,6 +878,23 @@ public partial class MainForm : Form, IMainView
         numCooldown.Value = Math.Clamp(config.CooldownBetweenReportsSeconds, numCooldown.Minimum, numCooldown.Maximum);
         chkNaturalEngagement.Checked = config.EnableNaturalEngagement;
         chkRotateReasons.Checked = config.RotateReasons;
+
+        if (config.SearchFilter != null)
+        {
+            cmbSearchFilterType.SelectedIndex = Math.Clamp((int)config.SearchFilter.Type, 0, cmbSearchFilterType.Items.Count - 1);
+            cmbSearchFilterDuration.SelectedIndex = Math.Clamp((int)config.SearchFilter.Duration, 0, cmbSearchFilterDuration.Items.Count - 1);
+            cmbSearchFilterUploadDate.SelectedIndex = Math.Clamp((int)config.SearchFilter.UploadDate, 0, cmbSearchFilterUploadDate.Items.Count - 1);
+            cmbSearchFilterSortBy.SelectedIndex = Math.Clamp((int)config.SearchFilter.SortBy, 0, cmbSearchFilterSortBy.Items.Count - 1);
+            chkSearchFilterLive.Checked = config.SearchFilter.LiveOnly;
+            chkSearchFilterCommons.Checked = config.SearchFilter.CommonsOnly;
+            chkSearchFilterSubtitles.Checked = config.SearchFilter.SubtitlesOnly;
+            chkSearchFilter4K.Checked = config.SearchFilter.FourKOnly;
+            chkSearchFilterRandomWatch.Checked = config.SearchFilter.RandomWatch;
+            chkSearchFilterDirectUrl.Checked = config.SearchFilter.DirectUrlMode;
+            chkSearchFilterAutoEmail.Checked = config.SearchFilter.AutoAllocateEmail;
+            chkSearchFilterRetrySearch.Checked = config.SearchFilter.ReSearchIfNotFound;
+            chkSearchFilterLaixiKeyboard.Checked = config.SearchFilter.CheckLaixiKeyboard;
+        }
     }
 
     public IReadOnlyList<string> GetSelectedDeviceSerials()

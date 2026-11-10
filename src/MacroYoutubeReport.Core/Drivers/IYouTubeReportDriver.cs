@@ -46,6 +46,11 @@ public interface IYouTubeReportDriver : IAsyncDisposable
     Task SearchAsync(string keyword, CancellationToken ct = default);
 
     /// <summary>
+    /// Áp dụng bộ lọc tìm kiếm nâng cao (Phân loại, Độ dài, Ngày tải lên, Live, v.v.) theo cấu hình AutoYouTube.
+    /// </summary>
+    Task<bool> ApplySearchFilterAsync(SearchFilterConfig? filter = null, CancellationToken ct = default) => Task.FromResult(true);
+
+    /// <summary>
     /// Cuộn thông minh tìm kiếm video theo tiêu chí (Tiêu đề, Kênh, URL) và click mở khi phát hiện.
     /// Trả về true nếu tìm thấy và đã click mở thành công; false nếu hết số trang cuộn tối đa.
     /// </summary>

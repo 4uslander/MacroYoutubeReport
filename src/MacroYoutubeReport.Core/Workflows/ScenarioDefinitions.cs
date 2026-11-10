@@ -55,6 +55,12 @@ public static class ScenarioDefinitions
 
             new DelegateWorkflowStep("3. Cuộn & chọn đúng video mục tiêu", async (driver, ctx, ct) =>
             {
+                var filter = ctx.CurrentScenario?.SearchFilter ?? config.SearchFilter;
+                if (filter != null && filter.HasActiveFilter())
+                {
+                    await driver.ApplySearchFilterAsync(filter, ct).ConfigureAwait(false);
+                }
+
                 bool found = await driver.SmartScrollAndSelectVideoAsync(target, ct).ConfigureAwait(false);
                 if (!found && !string.IsNullOrWhiteSpace(target.TargetUrl))
                 {
@@ -71,7 +77,7 @@ public static class ScenarioDefinitions
                 await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
                 string shot = await driver.CaptureScreenshotAsync("03_VideoOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Chọn video mục tiêu", "Đã tìm thấy và mở video mục tiêu thành công.", shot);
-            }, TimeSpan.FromSeconds(120)),
+            }, TimeSpan.FromSeconds(180)),
 
             new DelegateWorkflowStep("4. Xem video tự nhiên", async (driver, ctx, ct) =>
             {
@@ -430,6 +436,13 @@ public static class ScenarioDefinitions
                         : target.VideoTitle ?? "crypto live stream";
 
                     await driver.SearchAsync(searchKeyword, ct).ConfigureAwait(false);
+
+                    var filter = ctx.CurrentScenario?.SearchFilter ?? config.SearchFilter;
+                    if (filter != null && filter.HasActiveFilter())
+                    {
+                        await driver.ApplySearchFilterAsync(filter, ct).ConfigureAwait(false);
+                    }
+
                     bool found = await driver.SmartScrollAndSelectVideoAsync(target, ct).ConfigureAwait(false);
                     if (!found)
                     {
@@ -440,7 +453,7 @@ public static class ScenarioDefinitions
                 await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
                 string shot = await driver.CaptureScreenshotAsync("02_LiveStreamOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Vào livestream", "Đã mở luồng phát trực tiếp thành công.", shot);
-            }, TimeSpan.FromSeconds(90)),
+            }, TimeSpan.FromSeconds(180)),
 
             new DelegateWorkflowStep("3. Xem tự nhiên & tương tác Live Chat", async (driver, ctx, ct) =>
             {

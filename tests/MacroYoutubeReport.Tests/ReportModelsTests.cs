@@ -53,4 +53,40 @@ public class ReportModelsTests
         Assert.Equal(ReportReasonCategory.SpamOrMisleading, reason.Category);
         Assert.Contains(reason.CustomDetails, config.DetailTextTemplates);
     }
+
+    [Fact]
+    public void SearchFilterConfig_DefaultValues_HaveLiveOnlyAndToday()
+    {
+        var filter = new SearchFilterConfig();
+        Assert.True(filter.LiveOnly);
+        Assert.Equal(SearchUploadDateFilter.Today, filter.UploadDate);
+        Assert.Equal(50, filter.MaxScrollAttempts);
+        Assert.True(filter.HasActiveFilter());
+    }
+
+    [Fact]
+    public void SearchFilterConfig_HasActiveFilter_ReturnsFalse_WhenEmpty()
+    {
+        var filter = new SearchFilterConfig
+        {
+            LiveOnly = false,
+            UploadDate = SearchUploadDateFilter.All,
+            Type = SearchTypeFilter.All,
+            Duration = SearchDurationFilter.All,
+            SortBy = SearchSortByFilter.Relevance,
+            CommonsOnly = false,
+            SubtitlesOnly = false,
+            FourKOnly = false
+        };
+        Assert.False(filter.HasActiveFilter());
+    }
+
+    [Fact]
+    public void ReportScenarioConfig_LiveStreamScenario_HasFilterConfigured()
+    {
+        var config = ReportScenarioConfig.CreateLiveStreamFinancialScamConfig();
+        Assert.NotNull(config.SearchFilter);
+        Assert.True(config.SearchFilter.LiveOnly);
+        Assert.Equal(SearchUploadDateFilter.Today, config.SearchFilter.UploadDate);
+    }
 }

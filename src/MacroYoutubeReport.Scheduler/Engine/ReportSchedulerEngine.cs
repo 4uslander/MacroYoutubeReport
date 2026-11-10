@@ -26,7 +26,7 @@ public sealed class ReportSchedulerEngine : IAsyncDisposable
     private readonly IDriverFactory _driverFactory;
     private readonly WorkflowEngine _workflowEngine = new();
 
-    private readonly Channel<ReportTaskRequest> _channel;
+    private Channel<ReportTaskRequest> _channel;
     private readonly ConcurrentDictionary<string, ReportTaskRequest> _pendingTasks = new();
     private readonly ConcurrentDictionary<string, ReportTaskRequest> _runningTasks = new();
     private readonly ConcurrentDictionary<string, bool> _activeDeviceLocks = new(StringComparer.OrdinalIgnoreCase);
@@ -85,6 +85,7 @@ public sealed class ReportSchedulerEngine : IAsyncDisposable
         await _journal.InitializeAsync(ct).ConfigureAwait(false);
         await _accountManager.LoadAccountsAsync(ct: ct).ConfigureAwait(false);
 
+        _engineCts?.Dispose();
         _engineCts = new CancellationTokenSource();
         _dispatcherTask = Task.Run(() => DispatcherLoopAsync(_engineCts.Token), CancellationToken.None);
     }
@@ -109,6 +110,20 @@ public sealed class ReportSchedulerEngine : IAsyncDisposable
                 // Bỏ qua lỗi hủy luồng ngầm
             }
         }
+
+        // Dọn sạch hàng đợi và mở khóa toàn bộ thiết bị
+        _pendingTasks.Clear();
+        _runningTasks.Clear();
+        _activeDeviceLocks.Clear();
+
+        // Tạo lại channel mới sạch sẽ để sẵn sàng nhận tác vụ mới
+        _channel = Channel.CreateUnbounded<ReportTaskRequest>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        NotifyQueueStatusChanged();
     }
 
     public bool EnqueueTask(ReportTaskRequest request)

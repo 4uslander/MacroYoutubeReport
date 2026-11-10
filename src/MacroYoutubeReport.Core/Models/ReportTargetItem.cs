@@ -80,20 +80,29 @@ public sealed class ReportTargetItem
                    TargetUrl.Contains(foundUrl, StringComparison.OrdinalIgnoreCase);
         }
 
-        bool matchTitle = true;
+        string combined = $"{foundTitle} {foundChannel}";
+
+        if (!string.IsNullOrWhiteSpace(VideoTitle) && !string.IsNullOrWhiteSpace(ChannelName))
+        {
+            return combined.Contains(VideoTitle.Trim(), StringComparison.OrdinalIgnoreCase) &&
+                   combined.Contains(ChannelName.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
         if (!string.IsNullOrWhiteSpace(VideoTitle))
         {
-            matchTitle = !string.IsNullOrWhiteSpace(foundTitle) &&
-                         foundTitle.Contains(VideoTitle.Trim(), StringComparison.OrdinalIgnoreCase);
+            return combined.Contains(VideoTitle.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
-        bool matchChannel = true;
         if (!string.IsNullOrWhiteSpace(ChannelName))
         {
-            matchChannel = !string.IsNullOrWhiteSpace(foundChannel) &&
-                          foundChannel.Contains(ChannelName.Trim(), StringComparison.OrdinalIgnoreCase);
+            return combined.Contains(ChannelName.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
-        return matchTitle && matchChannel;
+        if (!string.IsNullOrWhiteSpace(Keyword))
+        {
+            return combined.Contains(Keyword.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
     }
 }

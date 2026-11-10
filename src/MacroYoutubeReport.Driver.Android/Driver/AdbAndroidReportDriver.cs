@@ -264,16 +264,25 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             if (doc != null)
             {
-                var textNodes = doc.SelectNodes("//android.widget.TextView[@text!='']");
-                if (textNodes != null)
+                // Tìm kiếm trên tất cả các node chứa content-desc hoặc text (ViewGroup, Button, TextView)
+                var candidateNodes = doc.SelectNodes("//node[(@content-desc!='' or @text!='') and (@clickable='true' or @class='android.view.ViewGroup' or @class='android.widget.Button' or @class='android.widget.TextView')]");
+                if (candidateNodes != null)
                 {
-                    foreach (XmlNode node in textNodes)
+                    foreach (XmlNode node in candidateNodes)
                     {
+                        string desc = node.Attributes?["content-desc"]?.Value ?? string.Empty;
                         string text = node.Attributes?["text"]?.Value ?? string.Empty;
-                        if (target.Matches(text, text, null))
+
+                        // Bỏ qua các nút điều hướng hoặc thanh hệ thống
+                        if (desc.Contains("Shorts") || desc.Contains("홈") || desc.Contains("구독") || desc.Contains("보관함") || desc.Contains("위로 이동") || desc.Contains("옵션 더보기"))
+                        {
+                            continue;
+                        }
+
+                        if (target.Matches(text, desc, null))
                         {
                             var elem = AdbUiXmlDumper.ParseElement(node);
-                            if (elem != null && elem.Bounds.Y > (_screenResolution.Height * 0.1) && elem.Bounds.Y < (_screenResolution.Height * 0.85))
+                            if (elem != null && elem.Bounds.Y > (_screenResolution.Height * 0.08) && elem.Bounds.Y < (_screenResolution.Height * 0.88))
                             {
                                 await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
                                 await Task.Delay(2500, ct).ConfigureAwait(false);

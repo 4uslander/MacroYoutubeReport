@@ -179,8 +179,18 @@ public sealed class MainPresenter
             return;
         }
 
+        if (!_engine.IsStarted)
+        {
+            await _engine.StartAsync().ConfigureAwait(false);
+        }
+
         _completedCount = 0;
         _failedCount = 0;
+
+        foreach (var serial in selectedDevices)
+        {
+            _view.UpdateDeviceRunningStatus(serial, "Đang rảnh", "Online");
+        }
 
         _view.SetRunningState(true);
         _view.AppendLog($"Bắt đầu thực thi hàng loạt {targets.Count} mục tiêu trên {(selectedDevices.Count > 0 ? selectedDevices.Count + " thiết bị" : platform.ToString())}...", "INFO");
@@ -203,6 +213,16 @@ public sealed class MainPresenter
             return;
         }
 
+        if (!_engine.IsStarted)
+        {
+            await _engine.StartAsync().ConfigureAwait(false);
+        }
+
+        foreach (var serial in selectedDevices)
+        {
+            _view.UpdateDeviceRunningStatus(serial, "Đang rảnh", "Online");
+        }
+
         _view.SetRunningState(true);
         string targetTitle = target.VideoTitle ?? target.Keyword;
         _view.AppendLog($"Bắt đầu mục tiêu [{targetTitle}] trên {(selectedDevices.Count > 0 ? selectedDevices.Count + " thiết bị" : platform.ToString())}...", "INFO");
@@ -216,6 +236,11 @@ public sealed class MainPresenter
         _view.AppendLog("Đang dừng toàn bộ tác vụ...", "WARN");
         _ = _engine.StopAsync();
         _view.SetRunningState(false);
+        var selectedDevices = _view.GetSelectedDeviceSerials();
+        foreach (var serial in selectedDevices)
+        {
+            _view.UpdateDeviceRunningStatus(serial, "Đang rảnh", "Đã dừng");
+        }
         _view.AppendLog("Đã dừng hàng đợi tác vụ.", "WARN");
     }
 

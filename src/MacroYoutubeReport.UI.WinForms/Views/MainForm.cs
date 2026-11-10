@@ -208,10 +208,7 @@ public partial class MainForm : Form, IMainView
             }
 
             AddTargetItem(item);
-            txtKeyword.Clear();
-            txtTitle.Clear();
-            txtChannel.Clear();
-            txtUrl.Clear();
+            // Giữ lại nội dung cài đặt mục tiêu trên giao diện theo yêu cầu người dùng
         };
 
         this.btnRemoveTarget.Click += (_, _) => RemoveSelectedTarget();
@@ -289,6 +286,31 @@ public partial class MainForm : Form, IMainView
                 }
                 RefreshTargetsGrid();
                 AppendLog($"Đã xóa mục tiêu tại dòng #{e.RowIndex + 1}", "INFO");
+            }
+        };
+
+        // Khi người dùng chọn dòng mục tiêu trên lưới, hiển thị lại thông tin lên form Cài đặt Mục tiêu
+        this.dgvTasks.SelectionChanged += (_, _) =>
+        {
+            if (dgvTasks.CurrentRow != null && dgvTasks.CurrentRow.Index >= 0)
+            {
+                int idx = dgvTasks.CurrentRow.Index;
+                lock (_targets)
+                {
+                    if (idx < _targets.Count)
+                    {
+                        var t = _targets[idx];
+                        this.txtKeyword.Text = t.Keyword ?? string.Empty;
+                        this.txtTitle.Text = t.VideoTitle ?? string.Empty;
+                        this.txtChannel.Text = t.ChannelName ?? string.Empty;
+                        this.txtUrl.Text = t.TargetUrl ?? string.Empty;
+                        int typeIdx = (int)t.TargetType;
+                        if (typeIdx >= 0 && typeIdx < this.cmbTargetType.Items.Count)
+                        {
+                            this.cmbTargetType.SelectedIndex = typeIdx;
+                        }
+                    }
+                }
             }
         };
 

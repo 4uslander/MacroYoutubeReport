@@ -180,6 +180,26 @@ public partial class MainForm : Form, IMainView
             }
         };
 
+        this.btnSelectReasonFile.Click += (_, _) =>
+        {
+            using var ofd = new OpenFileDialog
+            {
+                Filter = "Text File (*.txt)|*.txt|All Files (*.*)|*.*",
+                Title = "Chọn file nội dung lý do báo cáo"
+            };
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                txtReasonFile.Text = ofd.FileName;
+                AppendLog($"Đã chọn file nội dung lý do báo cáo: {Path.GetFileName(ofd.FileName)}", "INFO");
+            }
+        };
+
+        string defReasonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configs", "report_reasons.txt");
+        if (File.Exists(defReasonPath))
+        {
+            txtReasonFile.Text = defReasonPath;
+        }
+
         // 5. Target Input & Operations
         this.btnAddTarget.Click += (_, _) =>
         {
@@ -722,6 +742,10 @@ public partial class MainForm : Form, IMainView
 
     public ReportScenarioConfig GetScenarioConfig()
     {
+        string reasonFilePath = txtReasonFile.Text.Trim();
+        string defaultPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configs", "report_reasons.txt");
+        string fileToLoad = File.Exists(reasonFilePath) ? reasonFilePath : (File.Exists(defaultPath) ? defaultPath : string.Empty);
+
         if (cmbScenario.SelectedIndex == 5 || (cmbScenario.SelectedItem?.ToString()?.Contains("Livestream") == true))
         {
             var liveConfig = ReportScenarioConfig.CreateLiveStreamFinancialScamConfig();
@@ -730,6 +754,10 @@ public partial class MainForm : Form, IMainView
             liveConfig.CooldownBetweenReportsSeconds = (int)numCooldown.Value;
             liveConfig.EnableNaturalEngagement = chkNaturalEngagement.Checked;
             liveConfig.RotateReasons = chkRotateReasons.Checked;
+            if (!string.IsNullOrWhiteSpace(fileToLoad))
+            {
+                liveConfig.LoadReasonTemplatesFromFile(fileToLoad);
+            }
             return liveConfig;
         }
 
@@ -742,6 +770,11 @@ public partial class MainForm : Form, IMainView
             EnableNaturalEngagement = chkNaturalEngagement.Checked,
             RotateReasons = chkRotateReasons.Checked
         };
+
+        if (!string.IsNullOrWhiteSpace(fileToLoad))
+        {
+            config.LoadReasonTemplatesFromFile(fileToLoad);
+        }
 
         var selectedReason = cmbMainReason.SelectedIndex switch
         {
@@ -763,9 +796,11 @@ public partial class MainForm : Form, IMainView
         {
             config.ReasonPool = new List<ReportReasonConfig>
             {
+                new(selectedReason),
+                new(ReportReasonCategory.FinancialOrCryptoScam),
                 new(ReportReasonCategory.SpamOrMisleading),
-                new(ReportReasonCategory.HarmfulDangerousActs),
                 new(ReportReasonCategory.Misinformation),
+                new(ReportReasonCategory.HarmfulDangerousActs),
                 new(ReportReasonCategory.HatefulOrAbusive),
                 new(ReportReasonCategory.HarassmentOrBullying),
                 new(ReportReasonCategory.ViolentOrRepulsive)

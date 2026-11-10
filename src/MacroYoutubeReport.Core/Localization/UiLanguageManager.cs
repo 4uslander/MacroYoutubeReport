@@ -275,6 +275,7 @@ public static class UiLanguageManager
         ["Bộ lọc Tiêu chí Báo cáo"] = ("신고 기준 필터", "Report Criteria Filter"),
         ["Kịch bản:"] = ("시나리오:", "Scenario:"),
         ["Lý do:"] = ("사유:", "Reason:"),
+        ["Tệp lý do:"] = ("사유 파일:", "Reason File:"),
         ["Xem (giây):"] = ("시청 (초):", "Watch (sec):"),
         ["đến"] = ("~", "to"),
         ["Nghỉ (s):"] = ("휴식 (초):", "Cooldown (s):"),

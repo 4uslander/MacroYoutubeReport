@@ -16,4 +16,10 @@
     <ProjectReference Include="..\MacroYoutubeReport.Scheduler\MacroYoutubeReport.Scheduler.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Configs\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

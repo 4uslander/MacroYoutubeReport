@@ -63,9 +63,85 @@ public sealed class ReportScenarioConfig
     public int CooldownBetweenReportsSeconds { get; set; } = 120;
 
     /// <summary>
+    /// Đường dẫn file danh sách nội dung lý do báo cáo tùy chỉnh.
+    /// </summary>
+    public string? ReasonDetailsFilePath { get; set; }
+
+    /// <summary>
+    /// Bảng ánh xạ danh mục lý do với danh sách các câu giải trình tương ứng.
+    /// </summary>
+    public Dictionary<ReportReasonCategory, List<string>> ReasonCategoryTemplates { get; set; } = new();
+
+    /// <summary>
     /// Số lượt report tối đa cho phép trên 1 thiết bị/tài khoản mỗi ngày.
     /// </summary>
     public int MaxReportsPerDevicePerDay { get; set; } = 8;
+
+    /// <summary>
+    /// Tải danh sách nội dung lý do chi tiết từ file văn bản.
+    /// Hỗ trợ cả định dạng phân nhóm [Category] hoặc mỗi dòng một lý do xoay vòng.
+    /// </summary>
+    public void LoadReasonTemplatesFromFile(string? filePath)
+    {
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return;
+
+        try
+        {
+            ReasonDetailsFilePath = filePath;
+            var lines = File.ReadAllLines(filePath);
+            ReportReasonCategory currentCategory = ReportReasonCategory.FinancialOrCryptoScam;
+            var allTemplates = new List<string>();
+
+            foreach (var rawLine in lines)
+            {
+                var line = rawLine.Trim();
+                if (string.IsNullOrWhiteSpace(line) || line.StartsWith("#") || line.StartsWith("//"))
+                {
+                    continue;
+                }
+
+                if (line.StartsWith("[") && line.EndsWith("]"))
+                {
+                    string sec = line.Substring(1, line.Length - 2).Trim();
+                    currentCategory = sec.ToLowerInvariant() switch
+                    {
+                        var s when s.Contains("financial") || s.Contains("crypto") || s.Contains("lừa đảo") || s.Contains("사기") => ReportReasonCategory.FinancialOrCryptoScam,
+                        var s when s.Contains("spam") || s.Contains("misleading") || s.Contains("hiểu nhầm") || s.Contains("스팸") => ReportReasonCategory.SpamOrMisleading,
+                        var s when s.Contains("harmful") || s.Contains("nguy hiểm") || s.Contains("위험") => ReportReasonCategory.HarmfulDangerousActs,
+                        var s when s.Contains("misinformation") || s.Contains("sai lệch") || s.Contains("잘못된") => ReportReasonCategory.Misinformation,
+                        var s when s.Contains("hateful") || s.Contains("thù địch") || s.Contains("증오") => ReportReasonCategory.HatefulOrAbusive,
+                        var s when s.Contains("harassment") || s.Contains("quấy rối") || s.Contains("괴롭힘") => ReportReasonCategory.HarassmentOrBullying,
+                        var s when s.Contains("violent") || s.Contains("bạo lực") || s.Contains("폭력") => ReportReasonCategory.ViolentOrRepulsive,
+                        var s when s.Contains("sexual") || s.Contains("khiêu dâm") || s.Contains("성적") => ReportReasonCategory.SexualContent,
+                        _ => ReportReasonCategory.FinancialOrCryptoScam
+                    };
+
+                    if (!ReasonCategoryTemplates.ContainsKey(currentCategory))
+                    {
+                        ReasonCategoryTemplates[currentCategory] = new List<string>();
+                    }
+                    continue;
+                }
+
+                allTemplates.Add(line);
+                if (!ReasonCategoryTemplates.TryGetValue(currentCategory, out var catList))
+                {
+                    catList = new List<string>();
+                    ReasonCategoryTemplates[currentCategory] = catList;
+                }
+                catList.Add(line);
+            }
+
+            if (allTemplates.Count > 0)
+            {
+                DetailTextTemplates = allTemplates;
+            }
+        }
+        catch
+        {
+            // Bỏ qua lỗi đọc file, dùng template có sẵn
+        }
+    }
 
     /// <summary>
     /// Chọn lý do tiếp theo (ngẫu nhiên hoặc tuần tự).
@@ -77,23 +153,37 @@ public sealed class ReportScenarioConfig
             return new ReportReasonConfig(ReportReasonCategory.SpamOrMisleading);
         }
 
-        if (!RotateReasons)
-        {
-            return ReasonPool[0];
-        }
-
         random ??= Random.Shared;
-        int idx = random.Next(ReasonPool.Count);
-        var chosen = ReasonPool[idx];
+        var chosen = RotateReasons ? ReasonPool[random.Next(ReasonPool.Count)] : ReasonPool[0];
 
-        // Nếu có kích hoạt SpinText và chưa có text cụ thể, lấy từ kho templates
-        if (chosen.SpinTextEnabled && string.IsNullOrWhiteSpace(chosen.CustomDetails) && DetailTextTemplates.Count > 0)
+        // Lấy câu giải trình chi tiết từ kho templates tương ứng với danh mục lý do
+        string? detail = chosen.CustomDetails;
+        if (string.IsNullOrWhiteSpace(detail))
         {
-            int textIdx = random.Next(DetailTextTemplates.Count);
-            return new ReportReasonConfig(chosen.Category, DetailTextTemplates[textIdx], chosen.SubCategoryKey, chosen.TargetTimestamp);
+            if (ReasonCategoryTemplates.TryGetValue(chosen.Category, out var catTemplates) && catTemplates.Count > 0)
+            {
+                detail = catTemplates[random.Next(catTemplates.Count)];
+            }
+            else if (DetailTextTemplates.Count > 0)
+            {
+                detail = DetailTextTemplates[random.Next(DetailTextTemplates.Count)];
+            }
+            else
+            {
+                detail = chosen.Category switch
+                {
+                    ReportReasonCategory.FinancialOrCryptoScam => "이 방송은 불법 해외선물 대여계좌 및 사기성 리딩방을 홍보하고 있습니다.",
+                    ReportReasonCategory.SpamOrMisleading => "스팸성 링크 및 불법 투자 유도성 콘텐츠입니다.",
+                    ReportReasonCategory.Misinformation => "시청자를 기만하는 조작된 허위 정보 방송입니다.",
+                    _ => "YouTube 커뮤니티 가이드라인을 심각하게 위반하는 콘텐츠입니다."
+                };
+            }
         }
 
-        return chosen;
+        return new ReportReasonConfig(chosen.Category, detail, chosen.SubCategoryKey, chosen.TargetTimestamp)
+        {
+            SpinTextEnabled = chosen.SpinTextEnabled
+        };
     }
 
     /// <summary>

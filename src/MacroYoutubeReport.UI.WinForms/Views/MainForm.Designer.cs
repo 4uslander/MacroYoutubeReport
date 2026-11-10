@@ -53,6 +53,9 @@ partial class MainForm
     private ComboBox cmbScenario;
     private Label lblMainReason;
     private ComboBox cmbMainReason;
+    private Label lblReasonFile;
+    private TextBox txtReasonFile;
+    private Button btnSelectReasonFile;
     private Label lblWatchDuration;
     private NumericUpDown numMinWatch;
     private Label lblTo;
@@ -176,6 +179,9 @@ partial class MainForm
         this.cmbScenario = new ComboBox();
         this.lblMainReason = new Label();
         this.cmbMainReason = new ComboBox();
+        this.lblReasonFile = new Label();
+        this.txtReasonFile = new TextBox();
+        this.btnSelectReasonFile = new Button();
         this.lblWatchDuration = new Label();
         this.numMinWatch = new NumericUpDown();
         this.lblTo = new Label();
@@ -414,69 +420,82 @@ partial class MainForm
         });
         this.cmbMainReason.SelectedIndex = 0;
 
+        this.lblReasonFile.Text = "Tệp lý do:";
+        this.lblReasonFile.Location = new Point(10, 80);
+        this.lblReasonFile.AutoSize = true;
+
+        this.txtReasonFile.Location = new Point(80, 77);
+        this.txtReasonFile.Size = new Size(160, 23);
+        this.txtReasonFile.PlaceholderText = "Chọn file nội dung lý do...";
+
+        this.btnSelectReasonFile.Text = "Chọn";
+        this.btnSelectReasonFile.Location = new Point(245, 76);
+        this.btnSelectReasonFile.Size = new Size(60, 25);
+
         this.lblWatchDuration.Text = "Xem (giây):";
-        this.lblWatchDuration.Location = new Point(10, 82);
+        this.lblWatchDuration.Location = new Point(10, 108);
         this.lblWatchDuration.AutoSize = true;
-        this.numMinWatch.Location = new Point(80, 79);
+        this.numMinWatch.Location = new Point(80, 105);
         this.numMinWatch.Size = new Size(55, 23);
         this.numMinWatch.Minimum = 5;
         this.numMinWatch.Maximum = 600;
         this.numMinWatch.Value = 35;
 
         this.lblTo.Text = "đến";
-        this.lblTo.Location = new Point(140, 82);
+        this.lblTo.Location = new Point(140, 108);
         this.lblTo.AutoSize = true;
-        this.numMaxWatch.Location = new Point(170, 79);
+        this.numMaxWatch.Location = new Point(170, 105);
         this.numMaxWatch.Size = new Size(55, 23);
         this.numMaxWatch.Minimum = 10;
         this.numMaxWatch.Maximum = 900;
         this.numMaxWatch.Value = 90;
 
         this.lblCooldown.Text = "Nghỉ (s):";
-        this.lblCooldown.Location = new Point(10, 112);
+        this.lblCooldown.Location = new Point(10, 137);
         this.lblCooldown.AutoSize = true;
-        this.numCooldown.Location = new Point(80, 109);
+        this.numCooldown.Location = new Point(80, 134);
         this.numCooldown.Size = new Size(55, 23);
         this.numCooldown.Minimum = 0;
         this.numCooldown.Maximum = 1800;
         this.numCooldown.Value = 120;
 
         this.lblConcurrency.Text = "Luồng:";
-        this.lblConcurrency.Location = new Point(145, 112);
+        this.lblConcurrency.Location = new Point(145, 137);
         this.lblConcurrency.AutoSize = true;
-        this.numConcurrency.Location = new Point(190, 109);
+        this.numConcurrency.Location = new Point(190, 134);
         this.numConcurrency.Size = new Size(55, 23);
         this.numConcurrency.Minimum = 1;
         this.numConcurrency.Maximum = 32;
         this.numConcurrency.Value = 3;
 
         this.chkAutoSkipAd.Text = "Bỏ qua quảng cáo (Skip Ad)";
-        this.chkAutoSkipAd.Location = new Point(10, 140);
+        this.chkAutoSkipAd.Location = new Point(10, 162);
         this.chkAutoSkipAd.Size = new Size(200, 20);
         this.chkAutoSkipAd.Checked = true;
 
         this.chkNaturalEngagement.Text = "Mô phỏng người thật (cuộn đọc comment)";
-        this.chkNaturalEngagement.Location = new Point(10, 164);
+        this.chkNaturalEngagement.Location = new Point(10, 184);
         this.chkNaturalEngagement.Size = new Size(290, 20);
         this.chkNaturalEngagement.Checked = true;
 
         this.chkRandomWatch.Text = "Xem ngẫu nhiên (Random watch)";
-        this.chkRandomWatch.Location = new Point(10, 188);
+        this.chkRandomWatch.Location = new Point(10, 206);
         this.chkRandomWatch.Size = new Size(220, 20);
         this.chkRandomWatch.Checked = true;
 
         this.chkRotateReasons.Text = "Tự động xoay vòng lý do vi phạm";
-        this.chkRotateReasons.Location = new Point(10, 212);
+        this.chkRotateReasons.Location = new Point(10, 228);
         this.chkRotateReasons.Size = new Size(230, 20);
         this.chkRotateReasons.Checked = true;
 
         this.chkAutoAllocate.Text = "Tự động phân bổ tài khoản Proxy";
-        this.chkAutoAllocate.Location = new Point(10, 236);
+        this.chkAutoAllocate.Location = new Point(10, 250);
         this.chkAutoAllocate.Size = new Size(230, 20);
         this.chkAutoAllocate.Checked = true;
 
         this.gbReportSettings.Controls.AddRange(new Control[] {
             this.lblScenario, this.cmbScenario, this.lblMainReason, this.cmbMainReason,
+            this.lblReasonFile, this.txtReasonFile, this.btnSelectReasonFile,
             this.lblWatchDuration, this.numMinWatch, this.lblTo, this.numMaxWatch,
             this.lblCooldown, this.numCooldown, this.lblConcurrency, this.numConcurrency,
             this.chkAutoSkipAd, this.chkNaturalEngagement, this.chkRandomWatch, this.chkRotateReasons, this.chkAutoAllocate

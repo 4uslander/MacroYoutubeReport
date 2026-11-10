@@ -1,0 +1,29 @@
+## Visual Studio and .NET Build Artifacts
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+[Ll]og/
+[Ll]ogs/
+.vs/
+*.user
+*.suo
+*.userprefs
+TestResults/
+*.VisualState.xml
+
+## Playwright
+.playwright/
+
+## SQLite local db files created during runtime
+*.db-shm
+*.db-wal
+
+## Screenshots generated during execution
+Screenshots/
+test_screenshots/

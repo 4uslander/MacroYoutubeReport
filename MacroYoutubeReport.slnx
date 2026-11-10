@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MacroYoutubeReport.Core/MacroYoutubeReport.Core.csproj" />
+    <Project Path="src/MacroYoutubeReport.Driver.Android/MacroYoutubeReport.Driver.Android.csproj" />
+    <Project Path="src/MacroYoutubeReport.Driver.Chrome/MacroYoutubeReport.Driver.Chrome.csproj" />
+    <Project Path="src/MacroYoutubeReport.Scheduler/MacroYoutubeReport.Scheduler.csproj" />
+    <Project Path="src/MacroYoutubeReport.UI.WinForms/MacroYoutubeReport.UI.WinForms.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MacroYoutubeReport.Tests/MacroYoutubeReport.Tests.csproj" />
+  </Folder>
+</Solution>

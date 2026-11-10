@@ -1,0 +1,238 @@
+using MacroYoutubeReport.Core.Enums;
+using MacroYoutubeReport.Core.Models;
+using MacroYoutubeReport.Driver.Android.Adb;
+using MacroYoutubeReport.Scheduler.Accounts;
+using MacroYoutubeReport.Scheduler.Engine;
+using MacroYoutubeReport.Scheduler.Journal;
+using MacroYoutubeReport.Scheduler.Proxy;
+using MacroYoutubeReport.UI.WinForms.Views;
+
+namespace MacroYoutubeReport.UI.WinForms.Presenters;
+
+/// <summary>
+/// Presenter điều phối toàn bộ logic giữa giao diện người dùng (IMainView) và tầng Lập lịch (ReportSchedulerEngine).
+/// </summary>
+public sealed class MainPresenter
+{
+    private readonly IMainView _view;
+    private readonly ReportSchedulerEngine _engine;
+    private readonly IExecutionJournal _journal;
+    private readonly IAccountManager _accountManager;
+    private readonly IProxyRotator _proxyRotator;
+
+    private int _completedCount = 0;
+    private int _failedCount = 0;
+
+    public MainPresenter(
+        IMainView view,
+        ReportSchedulerEngine engine,
+        IExecutionJournal journal,
+        IAccountManager accountManager,
+        IProxyRotator proxyRotator)
+    {
+        _view = view ?? throw new ArgumentNullException(nameof(view));
+        _engine = engine ?? throw new ArgumentNullException(nameof(engine));
+        _journal = journal ?? throw new ArgumentNullException(nameof(journal));
+        _accountManager = accountManager ?? throw new ArgumentNullException(nameof(accountManager));
+        _proxyRotator = proxyRotator ?? throw new ArgumentNullException(nameof(proxyRotator));
+
+        BindEvents();
+    }
+
+    private void BindEvents()
+    {
+        _view.ViewLoaded += OnViewLoadedAsync;
+        _view.ScanDevicesRequested += OnScanDevicesRequestedAsync;
+        _view.StartBatchRequested += OnStartBatchRequestedAsync;
+        _view.StopBatchRequested += OnStopBatchRequested;
+        _view.RefreshHistoryRequested += OnRefreshHistoryRequestedAsync;
+        _view.ExportHistoryCsvRequested += OnExportHistoryCsvRequested;
+
+        // Lắng nghe sự kiện từ Engine
+        _engine.OnTaskQueued += req =>
+        {
+            _view.AppendLog($"Đã thêm mục tiêu vào hàng đợi: {req.Target.VideoTitle ?? req.Target.Keyword}", "INFO");
+            UpdateStatusCounters();
+        };
+
+        _engine.OnTaskStarted += (req, deviceId) =>
+        {
+            _view.AppendLog($"Bắt đầu xử lý: [{deviceId}] -> {req.Target.VideoTitle ?? req.Target.Keyword}", "INFO");
+            UpdateStatusCounters();
+        };
+
+        _engine.OnStepProgress += (req, step) =>
+        {
+            string level = step.IsSuccess ? "INFO" : "WARN";
+            _view.AppendLog($"[{step.StepName}] {step.Message}", level);
+            if (!string.IsNullOrWhiteSpace(step.ScreenshotPath))
+            {
+                _view.DisplayProofScreenshot(step.ScreenshotPath);
+            }
+        };
+
+        _engine.OnTaskCompleted += record =>
+        {
+            if (record.Status == ExecutionStatus.Succeeded)
+            {
+                Interlocked.Increment(ref _completedCount);
+                _view.AppendLog($"Thành công: Đã báo cáo mục tiêu [{record.TargetNameOrUrl}]!", "SUCCESS");
+            }
+            else
+            {
+                Interlocked.Increment(ref _failedCount);
+                _view.AppendLog($"Thất bại: [{record.TargetNameOrUrl}] - Lỗi: {record.ErrorMessage}", "ERROR");
+            }
+
+            if (!string.IsNullOrWhiteSpace(record.ScreenshotProofPath))
+            {
+                _view.DisplayProofScreenshot(record.ScreenshotProofPath);
+            }
+
+            UpdateStatusCounters();
+            _ = RefreshHistoryDataAsync();
+        };
+
+        _engine.OnQueueStatusChanged += (pending, running) =>
+        {
+            UpdateStatusCounters();
+            if (pending == 0 && running == 0 && _view.IsRunning)
+            {
+                _view.SetRunningState(false);
+                _view.AppendLog("Đã hoàn tất tất cả mục tiêu trong hàng đợi.", "SUCCESS");
+            }
+        };
+    }
+
+    private async Task OnViewLoadedAsync()
+    {
+        _view.AppendLog("Đang khởi động hệ thống Macro YouTube Report...", "INFO");
+
+        await _engine.StartAsync().ConfigureAwait(false);
+        await ScanDevicesAsync().ConfigureAwait(false);
+        LoadChromeProfiles();
+        LoadAccountsAndProxies();
+        await RefreshHistoryDataAsync().ConfigureAwait(false);
+
+        _view.AppendLog("Hệ thống đã sẵn sàng.", "INFO");
+    }
+
+    private async Task OnScanDevicesRequestedAsync()
+    {
+        _view.AppendLog("Đang quét danh sách thiết bị Android qua ADB...", "INFO");
+        await ScanDevicesAsync().ConfigureAwait(false);
+        _view.AppendLog("Quét thiết bị hoàn tất.", "INFO");
+    }
+
+    private async Task ScanDevicesAsync()
+    {
+        try
+        {
+            var devices = await AdbDeviceManager.Instance.ScanDevicesAsync().ConfigureAwait(false);
+            _view.SetDevices(devices);
+        }
+        catch (Exception ex)
+        {
+            _view.AppendLog($"Lỗi khi quét thiết bị ADB: {ex.Message}", "WARN");
+        }
+    }
+
+    private void LoadChromeProfiles()
+    {
+        var profiles = new List<string> { "Default", "Profile 1", "Profile 2", "Profile 3" };
+        string baseDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MacroYoutubeReport", "ChromeProfiles");
+        if (Directory.Exists(baseDir))
+        {
+            foreach (var dir in Directory.GetDirectories(baseDir))
+            {
+                string name = Path.GetFileName(dir);
+                if (!profiles.Contains(name, StringComparer.OrdinalIgnoreCase))
+                {
+                    profiles.Add(name);
+                }
+            }
+        }
+        _view.SetChromeProfiles(profiles);
+    }
+
+    private void LoadAccountsAndProxies()
+    {
+        var accounts = _accountManager.GetAllAccounts();
+        _view.SetAccounts(accounts);
+
+        var proxies = _proxyRotator.GetAllProxies();
+        _view.SetProxies(proxies);
+    }
+
+    private async Task OnStartBatchRequestedAsync()
+    {
+        var targets = _view.GetTargetItems();
+        if (targets.Count == 0)
+        {
+            _view.ShowNotification("Vui lòng thêm ít nhất một mục tiêu trước khi bắt đầu.", isError: true);
+            return;
+        }
+
+        var config = _view.GetScenarioConfig();
+        var platform = _view.SelectedPlatform;
+
+        _completedCount = 0;
+        _failedCount = 0;
+
+        _view.SetRunningState(true);
+        _view.AppendLog($"Bắt đầu thực thi hàng loạt {targets.Count} mục tiêu trên nền tảng {platform}...", "INFO");
+
+        int queued = _engine.EnqueueBatch(targets, config, platform);
+        _view.AppendLog($"Đã xếp {queued} mục tiêu vào hàng đợi.", "INFO");
+    }
+
+    private void OnStopBatchRequested()
+    {
+        _view.AppendLog("Đang dừng toàn bộ tác vụ...", "WARN");
+        _ = _engine.StopAsync();
+        _view.SetRunningState(false);
+        _view.AppendLog("Đã dừng hàng đợi tác vụ.", "WARN");
+    }
+
+    private async Task OnRefreshHistoryRequestedAsync()
+    {
+        await RefreshHistoryDataAsync().ConfigureAwait(false);
+    }
+
+    private async Task RefreshHistoryDataAsync()
+    {
+        try
+        {
+            var records = await _journal.GetRecentRecordsAsync(150).ConfigureAwait(false);
+            _view.SetHistoryRecords(records);
+        }
+        catch (Exception ex)
+        {
+            _view.AppendLog($"Lỗi tải lịch sử: {ex.Message}", "WARN");
+        }
+    }
+
+    private void OnExportHistoryCsvRequested(string filePath)
+    {
+        try
+        {
+            var records = _journal.GetRecentRecordsAsync(1000).GetAwaiter().GetResult();
+            using var writer = new StreamWriter(filePath);
+            writer.WriteLine("Id,TaskId,Target,Device,Platform,Category,Status,WatchSeconds,Screenshot,Error,CreatedAt");
+            foreach (var r in records)
+            {
+                writer.WriteLine($"{r.Id},{r.TaskId},\"{r.TargetNameOrUrl}\",{r.DeviceSerialOrProfile},{r.Platform},{r.Category},{r.Status},{r.WatchDurationSeconds},\"{r.ScreenshotProofPath}\",\"{r.ErrorMessage}\",{r.CreatedAt:yyyy-MM-dd HH:mm:ss}");
+            }
+            _view.ShowNotification("Xuất báo cáo CSV thành công!");
+        }
+        catch (Exception ex)
+        {
+            _view.ShowNotification($"Lỗi xuất file CSV: {ex.Message}", isError: true);
+        }
+    }
+
+    private void UpdateStatusCounters()
+    {
+        _view.UpdateQueueStatus(_engine.PendingCount, _engine.RunningCount, _completedCount, _failedCount);
+    }
+}

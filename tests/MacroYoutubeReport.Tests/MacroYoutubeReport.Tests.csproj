@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net10.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <UseWindowsForms>true</UseWindowsForms>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
 
@@ -24,6 +25,7 @@
     <ProjectReference Include="..\..\src\MacroYoutubeReport.Driver.Android\MacroYoutubeReport.Driver.Android.csproj" />
     <ProjectReference Include="..\..\src\MacroYoutubeReport.Driver.Chrome\MacroYoutubeReport.Driver.Chrome.csproj" />
     <ProjectReference Include="..\..\src\MacroYoutubeReport.Scheduler\MacroYoutubeReport.Scheduler.csproj" />
+    <ProjectReference Include="..\..\src\MacroYoutubeReport.UI.WinForms\MacroYoutubeReport.UI.WinForms.csproj" />
   </ItemGroup>
 
 </Project>

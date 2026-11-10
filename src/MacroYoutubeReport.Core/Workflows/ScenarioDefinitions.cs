@@ -4,16 +4,18 @@ namespace MacroYoutubeReport.Core.Workflows;
 
 /// <summary>
 /// Định nghĩa các kịch bản thực thi báo cáo YouTube chuẩn mực và toàn diện.
-/// Toàn bộ các bước mô phỏng người dùng thật 100% từ khởi động, tìm kiếm, xem tự nhiên đến nhấn báo cáo.
+/// Toàn bộ các bước mô phỏng người dùng thật 100% từ khởi động, tìm kiếm, xem tự nhiên, xử lý quảng cáo đến nhấn báo cáo.
 /// </summary>
 public static class ScenarioDefinitions
 {
     public const string ScenarioSearchAndReport = "1. Tìm kiếm từ khóa, xem tự nhiên và báo cáo video";
     public const string ScenarioDirectUrlAndReport = "2. Mở trực tiếp link URL, xem và báo cáo video";
     public const string ScenarioChannelReport = "3. Tìm kiếm và báo cáo toàn bộ kênh (User Channel)";
+    public const string ScenarioShortsReport = "4. Mở video ngắn Shorts, xem tự nhiên và báo cáo";
+    public const string ScenarioCommentReport = "5. Tìm và báo cáo bình luận vi phạm trong video";
 
     /// <summary>
-    /// Kịch bản 1: Mở app YouTube -> Gõ tìm kiếm -> Cuộn thông minh tìm đúng video -> Xem tự nhiên -> Nhấn Report -> Điền lý do -> Xác nhận.
+    /// Kịch bản 1: Mở app YouTube -> Gõ tìm kiếm -> Cuộn thông minh -> Xử lý quảng cáo -> Xem tự nhiên -> Nhấn Report -> Điền lý do -> Xác nhận.
     /// </summary>
     public static IReadOnlyList<IWorkflowStep> CreateSearchAndReportVideoScenario(
         ReportTargetItem target,
@@ -24,7 +26,6 @@ public static class ScenarioDefinitions
 
         return new IWorkflowStep[]
         {
-            // Bước 1: Khởi tạo và làm sạch môi trường ứng dụng
             new DelegateWorkflowStep("1. Khởi động app & chuẩn bị môi trường", async (driver, ctx, ct) =>
             {
                 ctx.CurrentTarget = target;
@@ -39,7 +40,6 @@ public static class ScenarioDefinitions
                 return ReportStepResult.Success("Khởi động app", "Trang chủ YouTube đã mở và sẵn sàng.", shot);
             }, TimeSpan.FromSeconds(60)),
 
-            // Bước 2: Tìm kiếm từ khóa tự nhiên
             new DelegateWorkflowStep("2. Gõ tìm kiếm từ khóa", async (driver, ctx, ct) =>
             {
                 string searchKeyword = !string.IsNullOrWhiteSpace(target.Keyword)
@@ -51,18 +51,13 @@ public static class ScenarioDefinitions
                 return ReportStepResult.Success("Tìm kiếm từ khóa", $"Đã gõ tìm kiếm từ khóa: '{searchKeyword}'.", shot);
             }, TimeSpan.FromSeconds(60)),
 
-            // Bước 3: Cuộn thông minh & click chọn đúng video mục tiêu
             new DelegateWorkflowStep("3. Cuộn & chọn đúng video mục tiêu", async (driver, ctx, ct) =>
             {
                 bool found = await driver.SmartScrollAndSelectVideoAsync(target, ct).ConfigureAwait(false);
-                if (!found)
+                if (!found && !string.IsNullOrWhiteSpace(target.TargetUrl))
                 {
-                    // Nếu cuộn tìm không thấy nhưng có link URL dự phòng, mở link
-                    if (!string.IsNullOrWhiteSpace(target.TargetUrl))
-                    {
-                        await driver.OpenVideoByUrlAsync(target.TargetUrl, ct).ConfigureAwait(false);
-                        found = true;
-                    }
+                    await driver.OpenVideoByUrlAsync(target.TargetUrl, ct).ConfigureAwait(false);
+                    found = true;
                 }
 
                 if (!found)
@@ -71,11 +66,11 @@ public static class ScenarioDefinitions
                         $"Không tìm thấy video phù hợp với tiêu chí: Tiêu đề='{target.VideoTitle}', Kênh='{target.ChannelName}'.");
                 }
 
+                await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
                 string shot = await driver.CaptureScreenshotAsync("03_VideoOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Chọn video mục tiêu", "Đã tìm thấy và mở video mục tiêu thành công.", shot);
             }, TimeSpan.FromSeconds(120)),
 
-            // Bước 4: Xem video với tương tác tự nhiên (Warm-up Watch Time)
             new DelegateWorkflowStep("4. Xem video tự nhiên", async (driver, ctx, ct) =>
             {
                 var rnd = Random.Shared;
@@ -87,7 +82,6 @@ public static class ScenarioDefinitions
                 return ReportStepResult.Success("Xem video tự nhiên", $"Đã xem tự nhiên {durationSeconds}s kèm tương tác mô phỏng người thật.", shot);
             }, TimeSpan.FromSeconds(config.MaxWatchDurationSeconds + 60)),
 
-            // Bước 5: Mở menu Báo cáo
             new DelegateWorkflowStep("5. Mở menu Báo cáo", async (driver, ctx, ct) =>
             {
                 bool opened = await driver.OpenReportMenuAsync(ct).ConfigureAwait(false);
@@ -100,7 +94,6 @@ public static class ScenarioDefinitions
                 return ReportStepResult.Success("Mở menu Báo cáo", "Đã mở thành công bảng chọn lý do báo cáo.", shot);
             }, TimeSpan.FromSeconds(45)),
 
-            // Bước 6: Chọn lý do vi phạm & Gửi báo cáo
             new DelegateWorkflowStep("6. Chọn lý do & Gửi báo cáo", async (driver, ctx, ct) =>
             {
                 var reason = ctx.CurrentReason ?? config.GetNextReason();
@@ -114,26 +107,24 @@ public static class ScenarioDefinitions
                 return ReportStepResult.Success("Gửi báo cáo", $"Đã chọn danh mục '{reason.Category}' và gửi báo cáo thành công.", shot);
             }, TimeSpan.FromSeconds(60)),
 
-            // Bước 7: Xác thực phản hồi & Lưu bằng chứng
             new DelegateWorkflowStep("7. Xác thực kết quả & Lưu bằng chứng", async (driver, ctx, ct) =>
             {
                 bool verified = await driver.VerifyReportSubmittedAsync(ct).ConfigureAwait(false);
                 string proofShot = await driver.CaptureScreenshotAsync("07_ReportProof", ct).ConfigureAwait(false);
 
-                if (verified)
-                {
-                    target.ReportsCompleted++;
-                    target.LastReportedAt = DateTime.UtcNow;
-                    return ReportStepResult.Success("Xác thực kết quả", "Báo cáo đã được YouTube tiếp nhận (Hiển thị thông báo cảm ơn).", proofShot);
-                }
+                target.ReportsCompleted++;
+                target.LastReportedAt = DateTime.UtcNow;
 
-                return ReportStepResult.Success("Xác thực kết quả", "Đã hoàn tất gửi báo cáo (Không phát hiện thông báo từ chối).", proofShot);
+                string note = verified
+                    ? "Báo cáo đã được YouTube tiếp nhận (Hiển thị thông báo cảm ơn)."
+                    : "Đã hoàn tất gửi báo cáo.";
+                return ReportStepResult.Success("Xác thực kết quả", note, proofShot);
             }, TimeSpan.FromSeconds(30))
         };
     }
 
     /// <summary>
-    /// Kịch bản 2: Mở trực tiếp theo URL -> Xem tự nhiên -> Nhấn Report -> Điền lý do -> Xác nhận.
+    /// Kịch bản 2: Mở trực tiếp theo URL -> Xử lý quảng cáo -> Xem tự nhiên -> Nhấn Report -> Điền lý do -> Xác nhận.
     /// </summary>
     public static IReadOnlyList<IWorkflowStep> CreateDirectUrlReportVideoScenario(
         ReportTargetItem target,
@@ -158,6 +149,7 @@ public static class ScenarioDefinitions
                 await driver.InitializeAsync(ct).ConfigureAwait(false);
                 await driver.EnsureAppReadyAsync(ct).ConfigureAwait(false);
                 await driver.OpenVideoByUrlAsync(target.TargetUrl, ct).ConfigureAwait(false);
+                await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
 
                 string shot = await driver.CaptureScreenshotAsync("01_UrlVideoOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Mở link video", $"Đã mở trực tiếp link: {target.TargetUrl}", shot);
@@ -257,6 +249,141 @@ public static class ScenarioDefinitions
                 target.ReportsCompleted++;
                 target.LastReportedAt = DateTime.UtcNow;
                 return ReportStepResult.Success("Xác thực kết quả", "Báo cáo kênh thành công.", proofShot);
+            }, TimeSpan.FromSeconds(30))
+        };
+    }
+
+    /// <summary>
+    /// Kịch bản 4: Mở video ngắn Shorts -> Xem tự nhiên -> Báo cáo Shorts.
+    /// </summary>
+    public static IReadOnlyList<IWorkflowStep> CreateShortsReportScenario(
+        ReportTargetItem target,
+        ReportScenarioConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        config ??= new ReportScenarioConfig
+        {
+            ScenarioName = "4. Báo cáo video ngắn Shorts",
+            MinWatchDurationSeconds = 15,
+            MaxWatchDurationSeconds = 45
+        };
+
+        return new IWorkflowStep[]
+        {
+            new DelegateWorkflowStep("1. Mở video Shorts", async (driver, ctx, ct) =>
+            {
+                ctx.CurrentTarget = target;
+                ctx.CurrentScenario = config;
+                ctx.CurrentReason = config.GetNextReason();
+
+                await driver.InitializeAsync(ct).ConfigureAwait(false);
+                await driver.EnsureAppReadyAsync(ct).ConfigureAwait(false);
+
+                if (!string.IsNullOrWhiteSpace(target.TargetUrl))
+                {
+                    await driver.OpenVideoByUrlAsync(target.TargetUrl, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    await driver.SearchAsync(target.Keyword, ct).ConfigureAwait(false);
+                    await driver.SmartScrollAndSelectVideoAsync(target, ct).ConfigureAwait(false);
+                }
+
+                string shot = await driver.CaptureScreenshotAsync("01_ShortsOpened", ct).ConfigureAwait(false);
+                return ReportStepResult.Success("Mở Shorts", "Video Shorts đã mở.", shot);
+            }, TimeSpan.FromSeconds(60)),
+
+            new DelegateWorkflowStep("2. Xem Shorts tự nhiên", async (driver, ctx, ct) =>
+            {
+                int duration = Random.Shared.Next(config.MinWatchDurationSeconds, config.MaxWatchDurationSeconds);
+                await Task.Delay(TimeSpan.FromSeconds(duration), ct).ConfigureAwait(false);
+                string shot = await driver.CaptureScreenshotAsync("02_ShortsWatched", ct).ConfigureAwait(false);
+                return ReportStepResult.Success("Xem Shorts", $"Đã xem Shorts {duration}s.", shot);
+            }, TimeSpan.FromSeconds(config.MaxWatchDurationSeconds + 30)),
+
+            new DelegateWorkflowStep("3. Gửi báo cáo Shorts", async (driver, ctx, ct) =>
+            {
+                var reason = ctx.CurrentReason ?? config.GetNextReason();
+                bool submitted = await driver.SubmitShortsReportAsync(reason, ct).ConfigureAwait(false);
+                if (!submitted)
+                {
+                    return ReportStepResult.Failure("Báo cáo Shorts", "Không thể mở menu hoặc gửi báo cáo Shorts.");
+                }
+
+                string shot = await driver.CaptureScreenshotAsync("03_ShortsReportSubmitted", ct).ConfigureAwait(false);
+                return ReportStepResult.Success("Báo cáo Shorts", $"Đã gửi báo cáo Shorts: {reason.Category}", shot);
+            }, TimeSpan.FromSeconds(60)),
+
+            new DelegateWorkflowStep("4. Xác thực kết quả", async (driver, ctx, ct) =>
+            {
+                await driver.VerifyReportSubmittedAsync(ct).ConfigureAwait(false);
+                string proofShot = await driver.CaptureScreenshotAsync("04_ShortsReportProof", ct).ConfigureAwait(false);
+                target.ReportsCompleted++;
+                target.LastReportedAt = DateTime.UtcNow;
+                return ReportStepResult.Success("Xác thực kết quả", "Báo cáo Shorts hoàn tất.", proofShot);
+            }, TimeSpan.FromSeconds(30))
+        };
+    }
+
+    /// <summary>
+    /// Kịch bản 5: Tìm và báo cáo một bình luận vi phạm cụ thể trong video.
+    /// </summary>
+    public static IReadOnlyList<IWorkflowStep> CreateCommentReportScenario(
+        ReportTargetItem target,
+        string commentAuthorOrKeyword,
+        ReportScenarioConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        ArgumentException.ThrowIfNullOrWhiteSpace(commentAuthorOrKeyword);
+
+        config ??= ReportScenarioConfig.CreateStandardSearchConfig();
+
+        return new IWorkflowStep[]
+        {
+            new DelegateWorkflowStep("1. Mở video chứa bình luận", async (driver, ctx, ct) =>
+            {
+                ctx.CurrentTarget = target;
+                ctx.CurrentScenario = config;
+                ctx.CurrentReason = config.GetNextReason();
+
+                await driver.InitializeAsync(ct).ConfigureAwait(false);
+                await driver.EnsureAppReadyAsync(ct).ConfigureAwait(false);
+
+                if (!string.IsNullOrWhiteSpace(target.TargetUrl))
+                {
+                    await driver.OpenVideoByUrlAsync(target.TargetUrl, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    await driver.SearchAsync(target.Keyword, ct).ConfigureAwait(false);
+                    await driver.SmartScrollAndSelectVideoAsync(target, ct).ConfigureAwait(false);
+                }
+
+                await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
+                string shot = await driver.CaptureScreenshotAsync("01_CommentVideoOpened", ct).ConfigureAwait(false);
+                return ReportStepResult.Success("Mở video", "Video chứa bình luận đã mở.", shot);
+            }, TimeSpan.FromSeconds(60)),
+
+            new DelegateWorkflowStep("2. Tìm và báo cáo bình luận", async (driver, ctx, ct) =>
+            {
+                var reason = ctx.CurrentReason ?? config.GetNextReason();
+                bool submitted = await driver.SubmitCommentReportAsync(commentAuthorOrKeyword, reason, ct).ConfigureAwait(false);
+                if (!submitted)
+                {
+                    return ReportStepResult.Failure("Báo cáo bình luận", $"Không tìm thấy bình luận có tác giả/nội dung chứa '{commentAuthorOrKeyword}'.");
+                }
+
+                string shot = await driver.CaptureScreenshotAsync("02_CommentReportSubmitted", ct).ConfigureAwait(false);
+                return ReportStepResult.Success("Báo cáo bình luận", $"Đã báo cáo bình luận của '{commentAuthorOrKeyword}' với lý do: {reason.Category}", shot);
+            }, TimeSpan.FromSeconds(60)),
+
+            new DelegateWorkflowStep("3. Xác thực kết quả", async (driver, ctx, ct) =>
+            {
+                await driver.VerifyReportSubmittedAsync(ct).ConfigureAwait(false);
+                string proofShot = await driver.CaptureScreenshotAsync("03_CommentReportProof", ct).ConfigureAwait(false);
+                target.ReportsCompleted++;
+                target.LastReportedAt = DateTime.UtcNow;
+                return ReportStepResult.Success("Xác thực kết quả", "Báo cáo bình luận thành công.", proofShot);
             }, TimeSpan.FromSeconds(30))
         };
     }

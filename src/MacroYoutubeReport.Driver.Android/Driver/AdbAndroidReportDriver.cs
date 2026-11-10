@@ -13,7 +13,7 @@ namespace MacroYoutubeReport.Driver.Android.Driver;
 
 /// <summary>
 /// Triển khai IYouTubeReportDriver cho thiết bị thật hoặc giả lập Android qua kết nối ADB.
-/// Mô phỏng đầy đủ hành vi người dùng thật (Bézier swipe, random jitter tap, natural engagement, dismiss popups & shorts).
+/// Mô phỏng đầy đủ hành vi người dùng thật (Bézier swipe, random jitter tap, natural engagement, dismiss popups & shorts, skip ads).
 /// </summary>
 public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 {
@@ -48,7 +48,6 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         _deviceData = managed.RawDevice;
 
-        // Khóa màn hình dọc và tắt tự xoay
         try
         {
             await AdbClientGeneral.Instance.ExecuteShellAsync(_deviceData,
@@ -86,6 +85,43 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         await TryDismissPopupsAsync(device, ct).ConfigureAwait(false);
         await EscapeShortsTrapAsync(device, ct).ConfigureAwait(false);
+        await EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
+    }
+
+    public async Task EnsureNoAdPlayingAsync(CancellationToken ct = default)
+    {
+        var device = EnsureDevice();
+
+        for (int retry = 0; retry < 5; retry++)
+        {
+            ct.ThrowIfCancellationRequested();
+            var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (doc == null) break;
+
+            // 1. Tìm nút bỏ qua quảng cáo (Skip Ad)
+            var skipNode = doc.SelectSingleNode("//node[contains(@resource-id, 'skip_ad') or contains(@text, 'Bỏ qua') or contains(@text, 'Skip') or contains(@text, '건너뛰기') or contains(@content-desc, 'Bỏ qua') or contains(@content-desc, 'Skip')]");
+            if (skipNode != null)
+            {
+                var elem = AdbUiXmlDumper.ParseElement(skipNode);
+                if (elem != null)
+                {
+                    await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                    await Task.Delay(1500, ct).ConfigureAwait(false);
+                    return;
+                }
+            }
+
+            // 2. Kiểm tra xem có nhãn Ad/Quảng cáo/Sponsored đang chạy không
+            var sponsoredNode = doc.SelectSingleNode("//node[contains(@text, 'Được tài trợ') or contains(@text, 'Sponsored') or contains(@text, '스폰서') or contains(@text, 'Quảng cáo')]");
+            if (sponsoredNode != null)
+            {
+                await Task.Delay(2000, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                break;
+            }
+        }
     }
 
     public async Task NavigateHomeAsync(CancellationToken ct = default)
@@ -122,7 +158,6 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         var device = EnsureDevice();
         await EnsureAppReadyAsync(ct).ConfigureAwait(false);
 
-        // 1. Tìm và bấm nút Search
         bool tappedSearch = false;
         var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
         if (doc != null)
@@ -141,7 +176,6 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         if (!tappedSearch)
         {
-            // Fallback: vị trí icon search ở góc trên bên phải
             int sx = (int)(_screenResolution.Width * 0.85);
             int sy = (int)(_screenResolution.Height * 0.05);
             await AdbClientGeneral.Instance.TapAsync(device, sx, sy, ct).ConfigureAwait(false);
@@ -149,11 +183,9 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         await Task.Delay(1200, ct).ConfigureAwait(false);
 
-        // 2. Gõ từ khóa bằng AdbIME / input text
         await AdbImeHelper.InputTextAsync(device, keyword, ct).ConfigureAwait(false);
         await Task.Delay(800, ct).ConfigureAwait(false);
 
-        // 3. Nhấn Enter (KEYCODE_ENTER = 66) để thực thi tìm kiếm
         await AdbClientGeneral.Instance.SendKeyEventAsync(device, 66, ct).ConfigureAwait(false);
         await Task.Delay(2500, ct).ConfigureAwait(false);
     }
@@ -189,6 +221,7 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                                 await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
                                 await Task.Delay(2500, ct).ConfigureAwait(false);
                                 await TryDismissPopupsAsync(device, ct).ConfigureAwait(false);
+                                await EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
                                 return true;
                             }
                         }
@@ -214,6 +247,7 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         await Task.Delay(3000, ct).ConfigureAwait(false);
         await TryDismissPopupsAsync(device, ct).ConfigureAwait(false);
+        await EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
     }
 
     public async Task OpenChannelPageAsync(string channelUrlOrName, CancellationToken ct = default)
@@ -249,6 +283,8 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
     {
         var device = EnsureDevice();
         options ??= NaturalEngagementOptions.Default;
+
+        await EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
 
         DateTime endTime = DateTime.UtcNow + duration;
         var rnd = Random.Shared;
@@ -289,13 +325,11 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
     {
         var device = EnsureDevice();
 
-        // 1. Chạm nhẹ vào giữa vùng Player để đánh thức thanh điều khiển
         int playerX = _screenResolution.Width / 2;
         int playerY = (int)(_screenResolution.Height * 0.18);
         await AdbClientGeneral.Instance.TapAsync(device, playerX, playerY, ct).ConfigureAwait(false);
         await Task.Delay(600, ct).ConfigureAwait(false);
 
-        // 2. Tìm biểu tượng Settings (Bánh răng) hoặc 3-chấm trên player
         var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
         bool tappedSettings = false;
 
@@ -322,7 +356,6 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         await Task.Delay(1200, ct).ConfigureAwait(false);
 
-        // 3. Bottom sheet xuất hiện, tìm mục Báo cáo (Report / 신고)
         var bottomDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
         if (bottomDoc == null) return false;
 
@@ -360,7 +393,6 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
         if (doc == null) return false;
 
-        // 1. Tìm RadioButton hoặc TextView khớp với danh mục vi phạm
         var keywords = UiLanguageManager.GetAllKeywordsForCategory(reasonConfig.Category);
         bool categorySelected = false;
 
@@ -399,7 +431,6 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         await Task.Delay(1000, ct).ConfigureAwait(false);
 
-        // 2. Bấm nút Tiếp theo / Next nếu có
         var nextDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
         if (nextDoc != null)
         {
@@ -427,7 +458,6 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             }
         }
 
-        // 3. Nếu xuất hiện ô nhập ghi chú chi tiết và có cấu hình CustomDetails
         if (!string.IsNullOrWhiteSpace(reasonConfig.CustomDetails))
         {
             var detailsDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
@@ -483,6 +513,132 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                     await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
                     await Task.Delay(1500, ct).ConfigureAwait(false);
                     return await SubmitVideoReportAsync(reasonConfig, ct).ConfigureAwait(false);
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public async Task<bool> SubmitShortsReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default)
+    {
+        var device = EnsureDevice();
+
+        // 1. Tìm nút 3-chấm trên Shorts (thường nằm dọc ở cạnh phải màn hình)
+        var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+        bool openedMenu = false;
+
+        if (doc != null)
+        {
+            var menuNode = doc.SelectSingleNode("//node[contains(@resource-id, 'menu_button') or contains(@content-desc, 'More actions') or contains(@content-desc, 'Tùy chọn khác')]");
+            if (menuNode != null)
+            {
+                var elem = AdbUiXmlDumper.ParseElement(menuNode);
+                if (elem != null)
+                {
+                    await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                    openedMenu = true;
+                }
+            }
+        }
+
+        if (!openedMenu)
+        {
+            // Fallback vị trí nút 3 chấm của Shorts (bên phải, Y ~ 72%)
+            int btnX = (int)(_screenResolution.Width * 0.92);
+            int btnY = (int)(_screenResolution.Height * 0.72);
+            await AdbClientGeneral.Instance.TapAsync(device, btnX, btnY, ct).ConfigureAwait(false);
+        }
+
+        await Task.Delay(1200, ct).ConfigureAwait(false);
+
+        // 2. Tìm mục Báo cáo trong menu Shorts
+        var bottomDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+        if (bottomDoc != null)
+        {
+            var reportKeywords = UiLanguageManager.GetReportMenuKeywords();
+            var menuNodes = bottomDoc.SelectNodes("//android.widget.TextView[@text!='']");
+            if (menuNodes != null)
+            {
+                foreach (XmlNode node in menuNodes)
+                {
+                    string text = node.Attributes?["text"]?.Value ?? string.Empty;
+                    foreach (var kw in reportKeywords)
+                    {
+                        if (text.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                        {
+                            var elem = AdbUiXmlDumper.ParseElement(node);
+                            if (elem != null)
+                            {
+                                await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                                await Task.Delay(1500, ct).ConfigureAwait(false);
+                                return await SubmitVideoReportAsync(reasonConfig, ct).ConfigureAwait(false);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public async Task<bool> SubmitCommentReportAsync(string commentAuthorOrKeyword, ReportReasonConfig reasonConfig, CancellationToken ct = default)
+    {
+        var device = EnsureDevice();
+
+        // 1. Mở phần bình luận nếu chưa mở
+        var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+        if (doc != null)
+        {
+            var commentsEntryPoint = doc.SelectSingleNode("//node[contains(@resource-id, 'comments_entry_point') or contains(@text, 'Bình luận') or contains(@text, 'Comments') or contains(@text, '댓글')]");
+            if (commentsEntryPoint != null)
+            {
+                var elem = AdbUiXmlDumper.ParseElement(commentsEntryPoint);
+                if (elem != null)
+                {
+                    await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                    await Task.Delay(1500, ct).ConfigureAwait(false);
+                }
+            }
+        }
+
+        // 2. Tìm bình luận khớp với commentAuthorOrKeyword
+        var commentsDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+        if (commentsDoc != null)
+        {
+            var textNodes = commentsDoc.SelectNodes("//android.widget.TextView[@text!='']");
+            if (textNodes != null)
+            {
+                foreach (XmlNode n in textNodes)
+                {
+                    string txt = n.Attributes?["text"]?.Value ?? string.Empty;
+                    if (txt.Contains(commentAuthorOrKeyword, StringComparison.OrdinalIgnoreCase))
+                    {
+                        var elem = AdbUiXmlDumper.ParseElement(n);
+                        if (elem != null)
+                        {
+                            // Bấm nút menu 3 chấm của bình luận (thường nằm cùng hàng Y, sát bên phải)
+                            int menuX = (int)(_screenResolution.Width * 0.92);
+                            int menuY = elem.CenterPoint.Y;
+                            await AdbClientGeneral.Instance.TapAsync(device, menuX, menuY, ct).ConfigureAwait(false);
+                            await Task.Delay(1000, ct).ConfigureAwait(false);
+
+                            // Bấm Báo cáo
+                            var actionDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+                            var reportNode = actionDoc?.SelectSingleNode("//node[contains(@text, 'Báo cáo') or contains(@text, 'Report') or contains(@text, '신고')]");
+                            if (reportNode != null)
+                            {
+                                var reportElem = AdbUiXmlDumper.ParseElement(reportNode);
+                                if (reportElem != null)
+                                {
+                                    await AdbUiXmlDumper.Instance.TapElementAsync(device, reportElem, ct).ConfigureAwait(false);
+                                    await Task.Delay(1500, ct).ConfigureAwait(false);
+                                    return await SubmitVideoReportAsync(reasonConfig, ct).ConfigureAwait(false);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

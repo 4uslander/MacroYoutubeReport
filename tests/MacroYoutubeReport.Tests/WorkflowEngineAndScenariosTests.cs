@@ -25,6 +25,12 @@ public class WorkflowEngineAndScenariosTests
             return Task.CompletedTask;
         }
 
+        public Task EnsureNoAdPlayingAsync(CancellationToken ct = default)
+        {
+            ActionLogs.Add("EnsureNoAdPlaying");
+            return Task.CompletedTask;
+        }
+
         public Task NavigateHomeAsync(CancellationToken ct = default)
         {
             ActionLogs.Add("NavigateHome");
@@ -79,6 +85,18 @@ public class WorkflowEngineAndScenariosTests
             return Task.FromResult(true);
         }
 
+        public Task<bool> SubmitShortsReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default)
+        {
+            ActionLogs.Add($"SubmitShortsReport:{reasonConfig.Category}");
+            return Task.FromResult(true);
+        }
+
+        public Task<bool> SubmitCommentReportAsync(string commentAuthorOrKeyword, ReportReasonConfig reasonConfig, CancellationToken ct = default)
+        {
+            ActionLogs.Add($"SubmitCommentReport:{commentAuthorOrKeyword}:{reasonConfig.Category}");
+            return Task.FromResult(true);
+        }
+
         public Task<bool> VerifyReportSubmittedAsync(CancellationToken ct = default)
         {
             ActionLogs.Add("VerifyReport");
@@ -114,8 +132,71 @@ public class WorkflowEngineAndScenariosTests
         Assert.Equal(1, target.ReportsCompleted);
         Assert.NotNull(target.LastReportedAt);
         Assert.Contains(driver.ActionLogs, a => a.StartsWith("Search:funny cats"));
+        Assert.Contains(driver.ActionLogs, a => a == "EnsureNoAdPlaying");
         Assert.Contains(driver.ActionLogs, a => a == "OpenReportMenu");
         Assert.Contains(driver.ActionLogs, a => a.StartsWith("SubmitVideoReport:"));
+    }
+
+    [Fact]
+    public async Task ShortsReportScenario_ExecutesSuccessfully()
+    {
+        var driver = new MockYouTubeReportDriver();
+        var target = new ReportTargetItem("dance viral", null, null, "https://youtube.com/shorts/xyz123")
+        {
+            TargetType = ReportTargetType.Shorts
+        };
+        var config = new ReportScenarioConfig { MinWatchDurationSeconds = 1, MaxWatchDurationSeconds = 2 };
+
+        var steps = ScenarioDefinitions.CreateShortsReportScenario(target, config);
+        var engine = new WorkflowEngine();
+        var results = await engine.ExecuteScenarioAsync(driver, steps, new WorkflowContext());
+
+        Assert.All(results, r => Assert.True(r.IsSuccess));
+        Assert.Contains(driver.ActionLogs, a => a.StartsWith("SubmitShortsReport:"));
+    }
+
+    [Fact]
+    public async Task CommentReportScenario_ExecutesSuccessfully()
+    {
+        var driver = new MockYouTubeReportDriver();
+        var target = new ReportTargetItem("game review", null, null, "https://youtube.com/watch?v=game123");
+        var config = new ReportScenarioConfig { MinWatchDurationSeconds = 1, MaxWatchDurationSeconds = 2 };
+
+        var steps = ScenarioDefinitions.CreateCommentReportScenario(target, "ToxicUser99", config);
+        var engine = new WorkflowEngine();
+        var results = await engine.ExecuteScenarioAsync(driver, steps, new WorkflowContext());
+
+        Assert.All(results, r => Assert.True(r.IsSuccess));
+        Assert.Contains(driver.ActionLogs, a => a.Contains("SubmitCommentReport:ToxicUser99:"));
+    }
+
+    [Fact]
+    public async Task BatchScenarioRunner_RunsAllTargetsAndProducesSummary()
+    {
+        var driver = new MockYouTubeReportDriver();
+        var targets = new List<ReportTargetItem>
+        {
+            new("target 1", "Channel 1", "Title 1"),
+            new("target 2", "Channel 2", "Title 2") { TargetUrl = "https://youtube.com/watch?v=222" }
+        };
+
+        var config = ReportScenarioConfig.CreateStandardSearchConfig();
+        config.MinWatchDurationSeconds = 1;
+        config.MaxWatchDurationSeconds = 2;
+        config.CooldownBetweenReportsSeconds = 0; // Tắt cooldown trong test
+
+        var runner = new BatchScenarioRunner();
+        int startedCount = 0;
+        runner.OnTargetStarted += _ => startedCount++;
+
+        var summary = await runner.RunBatchAsync(driver, targets, config);
+
+        Assert.Equal(2, summary.TotalTargets);
+        Assert.Equal(2, summary.SuccessfulReports);
+        Assert.Equal(0, summary.FailedReports);
+        Assert.Equal(2, startedCount);
+        Assert.Equal(2, summary.Records.Count);
+        Assert.All(targets, t => Assert.True(t.IsCompleted));
     }
 
     [Fact]

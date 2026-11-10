@@ -11,7 +11,7 @@ namespace MacroYoutubeReport.Driver.Chrome.Driver;
 
 /// <summary>
 /// Triển khai IYouTubeReportDriver cho trình duyệt Google Chrome thông qua Microsoft Playwright.
-/// Hỗ trợ tài khoản đăng nhập liên tục (Persistent Profile), tương tác tự nhiên và báo cáo video/kênh.
+/// Hỗ trợ tài khoản đăng nhập liên tục (Persistent Profile), tương tác tự nhiên, xử lý quảng cáo và báo cáo video/kênh/shorts/comment.
 /// </summary>
 public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
 {
@@ -53,7 +53,6 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
             await page.GotoAsync(ChromeLocators.YoutubeHomeUrl, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
         }
 
-        // Tự động đóng popup đồng ý cookies / consent nếu có
         try
         {
             var consentBtn = await page.QuerySelectorAsync("button[aria-label*='Accept'], button[aria-label*='đồng ý'], button[aria-label*='Agree'], tp-yt-paper-button:has-text('Reject all')").ConfigureAwait(false);
@@ -66,6 +65,34 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
         catch
         {
             // Bỏ qua nếu không có popup consent
+        }
+    }
+
+    public async Task EnsureNoAdPlayingAsync(CancellationToken ct = default)
+    {
+        var page = EnsurePage();
+
+        for (int retry = 0; retry < 5; retry++)
+        {
+            ct.ThrowIfCancellationRequested();
+
+            var skipBtn = await page.QuerySelectorAsync(".ytp-skip-ad-button, .ytp-ad-skip-button-modern, button.ytp-ad-skip-button").ConfigureAwait(false);
+            if (skipBtn != null && await skipBtn.IsVisibleAsync().ConfigureAwait(false))
+            {
+                await skipBtn.ClickAsync().ConfigureAwait(false);
+                await Task.Delay(1500, ct).ConfigureAwait(false);
+                return;
+            }
+
+            var adContainer = await page.QuerySelectorAsync(".ytp-ad-player-overlay, .ad-showing").ConfigureAwait(false);
+            if (adContainer != null && await adContainer.IsVisibleAsync().ConfigureAwait(false))
+            {
+                await Task.Delay(2000, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                break;
+            }
         }
     }
 
@@ -82,14 +109,12 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
         var page = EnsurePage();
         await EnsureAppReadyAsync(ct).ConfigureAwait(false);
 
-        // 1. Click vào thanh tìm kiếm
         var searchInput = await page.WaitForSelectorAsync(ChromeLocators.SearchInput, new PageWaitForSelectorOptions { Timeout = 10000 }).ConfigureAwait(false);
         if (searchInput != null)
         {
             await searchInput.ClickAsync().ConfigureAwait(false);
             await searchInput.FillAsync(string.Empty).ConfigureAwait(false);
 
-            // Gõ phím với độ trễ người thật (human typing)
             var rnd = Random.Shared;
             foreach (char c in keyword)
             {
@@ -103,7 +128,6 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
         }
         else
         {
-            // Fallback: điều hướng trực tiếp bằng search query URL
             string searchUrl = $"{ChromeLocators.YoutubeSearchUrl}{Uri.EscapeDataString(keyword)}";
             await page.GotoAsync(searchUrl, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
             await Task.Delay(2000, ct).ConfigureAwait(false);
@@ -141,11 +165,11 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
                     await Task.Delay(1000, ct).ConfigureAwait(false);
                     await titleEl.ClickAsync().ConfigureAwait(false);
                     await Task.Delay(2500, ct).ConfigureAwait(false);
+                    await EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
                     return true;
                 }
             }
 
-            // Cuộn xuống nhẹ nhàng
             await page.Mouse.WheelAsync(0, 600).ConfigureAwait(false);
             await Task.Delay(1500, ct).ConfigureAwait(false);
         }
@@ -159,6 +183,7 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
         var page = EnsurePage();
         await page.GotoAsync(url, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded }).ConfigureAwait(false);
         await Task.Delay(2500, ct).ConfigureAwait(false);
+        await EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
     }
 
     public async Task OpenChannelPageAsync(string channelUrlOrName, CancellationToken ct = default)
@@ -187,6 +212,8 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
         var page = EnsurePage();
         options ??= NaturalEngagementOptions.Default;
 
+        await EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
+
         DateTime endTime = DateTime.UtcNow + duration;
         var rnd = Random.Shared;
         bool didScrollComments = false;
@@ -202,11 +229,9 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
             {
                 await Task.Delay(rnd.Next(4000, 8000), ct).ConfigureAwait(false);
 
-                // Cuộn chuột xuống bình luận
                 await page.Mouse.WheelAsync(0, 500).ConfigureAwait(false);
                 await Task.Delay(rnd.Next(3000, 6000), ct).ConfigureAwait(false);
 
-                // Cuộn ngược lên
                 await page.Mouse.WheelAsync(0, -500).ConfigureAwait(false);
                 didScrollComments = true;
             }
@@ -223,11 +248,9 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
     {
         var page = EnsurePage();
 
-        // 1. Tìm nút 3 chấm / More actions bên dưới Player
         var moreBtn = await page.QuerySelectorAsync(ChromeLocators.MoreActionsButton).ConfigureAwait(false);
         if (moreBtn == null)
         {
-            // Thử selector mở rộng
             moreBtn = await page.QuerySelectorAsync("ytd-menu-renderer tp-yt-paper-icon-button, button.yt-spec-button-shape-next[aria-label*='More'], button.yt-spec-button-shape-next[aria-label*='khác']").ConfigureAwait(false);
         }
 
@@ -236,7 +259,6 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
             await moreBtn.ClickAsync().ConfigureAwait(false);
             await Task.Delay(800, ct).ConfigureAwait(false);
 
-            // 2. Tìm mục Báo cáo trong dropdown menu
             var reportKeywords = UiLanguageManager.GetReportMenuKeywords();
             var menuItems = await page.QuerySelectorAllAsync(ChromeLocators.MenuItemReport).ConfigureAwait(false);
 
@@ -263,10 +285,8 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
         ArgumentNullException.ThrowIfNull(reasonConfig);
         var page = EnsurePage();
 
-        // 1. Chờ modal Báo cáo hiển thị
         await page.WaitForSelectorAsync(ChromeLocators.ReportModal, new PageWaitForSelectorOptions { Timeout = 8000 }).ConfigureAwait(false);
 
-        // 2. Tìm radio button tương ứng với lý do vi phạm
         var keywords = UiLanguageManager.GetAllKeywordsForCategory(reasonConfig.Category);
         var radioButtons = await page.QuerySelectorAllAsync(ChromeLocators.ReportRadioOption).ConfigureAwait(false);
 
@@ -293,7 +313,6 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
 
         await Task.Delay(800, ct).ConfigureAwait(false);
 
-        // 3. Click nút Tiếp theo / Next nếu có
         var nextBtn = await page.QuerySelectorAsync(ChromeLocators.ReportNextButton).ConfigureAwait(false);
         if (nextBtn != null && await nextBtn.IsVisibleAsync().ConfigureAwait(false))
         {
@@ -301,7 +320,6 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
             await Task.Delay(1000, ct).ConfigureAwait(false);
         }
 
-        // 4. Nếu có ô textarea nhập giải trình
         if (!string.IsNullOrWhiteSpace(reasonConfig.CustomDetails))
         {
             var textArea = await page.QuerySelectorAsync(ChromeLocators.ReportTextArea).ConfigureAwait(false);
@@ -312,7 +330,6 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
             }
         }
 
-        // 5. Click nút Báo cáo / Submit xác nhận
         var submitBtn = await page.QuerySelectorAsync(ChromeLocators.ReportSubmitButton).ConfigureAwait(false);
         if (submitBtn == null)
         {
@@ -333,7 +350,6 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
     {
         var page = EnsurePage();
 
-        // Trên trang kênh: tìm nút cờ hoặc menu báo cáo
         var flagBtn = await page.QuerySelectorAsync("button[aria-label*='Report'], ytd-channel-about-metadata-renderer button").ConfigureAwait(false);
         if (flagBtn != null)
         {
@@ -345,11 +361,66 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
         return false;
     }
 
+    public async Task<bool> SubmitShortsReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default)
+    {
+        var page = EnsurePage();
+
+        var menuBtn = await page.QuerySelectorAsync("ytd-reel-video-renderer[is-active] ytd-menu-renderer button, ytd-shorts #menu button").ConfigureAwait(false);
+        if (menuBtn != null)
+        {
+            await menuBtn.ClickAsync().ConfigureAwait(false);
+            await Task.Delay(800, ct).ConfigureAwait(false);
+
+            var reportItem = await page.QuerySelectorAsync("ytd-menu-service-item-renderer:has-text('Report'), ytd-menu-service-item-renderer:has-text('Báo cáo')").ConfigureAwait(false);
+            if (reportItem != null)
+            {
+                await reportItem.ClickAsync().ConfigureAwait(false);
+                await Task.Delay(1000, ct).ConfigureAwait(false);
+                return await SubmitVideoReportAsync(reasonConfig, ct).ConfigureAwait(false);
+            }
+        }
+
+        return false;
+    }
+
+    public async Task<bool> SubmitCommentReportAsync(string commentAuthorOrKeyword, ReportReasonConfig reasonConfig, CancellationToken ct = default)
+    {
+        var page = EnsurePage();
+
+        // 1. Cuộn đến khu vực bình luận
+        await page.Mouse.WheelAsync(0, 800).ConfigureAwait(false);
+        await Task.Delay(1500, ct).ConfigureAwait(false);
+
+        var commentThreads = await page.QuerySelectorAllAsync("ytd-comment-thread-renderer").ConfigureAwait(false);
+        foreach (var thread in commentThreads)
+        {
+            string threadText = await thread.InnerTextAsync().ConfigureAwait(false);
+            if (threadText.Contains(commentAuthorOrKeyword, StringComparison.OrdinalIgnoreCase))
+            {
+                var actionBtn = await thread.QuerySelectorAsync("#action-menu button").ConfigureAwait(false);
+                if (actionBtn != null)
+                {
+                    await actionBtn.ClickAsync().ConfigureAwait(false);
+                    await Task.Delay(600, ct).ConfigureAwait(false);
+
+                    var reportItem = await page.QuerySelectorAsync("ytd-menu-service-item-renderer:has-text('Report'), ytd-menu-service-item-renderer:has-text('Báo cáo')").ConfigureAwait(false);
+                    if (reportItem != null)
+                    {
+                        await reportItem.ClickAsync().ConfigureAwait(false);
+                        await Task.Delay(1000, ct).ConfigureAwait(false);
+                        return await SubmitVideoReportAsync(reasonConfig, ct).ConfigureAwait(false);
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
     public async Task<bool> VerifyReportSubmittedAsync(CancellationToken ct = default)
     {
         var page = EnsurePage();
 
-        // Kiểm tra xem modal đã đóng hoặc snackbar cảm ơn xuất hiện
         try
         {
             var snackbar = await page.QuerySelectorAsync("ytd-notification-action-renderer, tp-yt-paper-toast").ConfigureAwait(false);

@@ -31,6 +31,11 @@ public interface IYouTubeReportDriver : IAsyncDisposable
     Task EnsureAppReadyAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Tự động phát hiện và xử lý/bỏ qua quảng cáo (Ad Skip) nếu đang xuất hiện trước video.
+    /// </summary>
+    Task EnsureNoAdPlayingAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Điều hướng về trang chủ YouTube.
     /// </summary>
     Task NavigateHomeAsync(CancellationToken ct = default);
@@ -75,6 +80,16 @@ public interface IYouTubeReportDriver : IAsyncDisposable
     /// Thực hiện quy trình gửi Báo cáo toàn bộ kênh người dùng (Report user/channel).
     /// </summary>
     Task<bool> SubmitChannelReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default);
+
+    /// <summary>
+    /// Thực hiện quy trình gửi Báo cáo video ngắn Shorts.
+    /// </summary>
+    Task<bool> SubmitShortsReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default);
+
+    /// <summary>
+    /// Thực hiện quy trình tìm và gửi Báo cáo một bình luận vi phạm cụ thể.
+    /// </summary>
+    Task<bool> SubmitCommentReportAsync(string commentAuthorOrKeyword, ReportReasonConfig reasonConfig, CancellationToken ct = default);
 
     /// <summary>
     /// Kiểm tra xác thực thông báo báo cáo thành công xuất hiện trên màn hình (Toast / Snack-bar / Dialog confirmation).

@@ -125,7 +125,8 @@ public static class LiveChatOverlayHelper
                 "//node[@resource-id='com.google.android.youtube:id/player_settings_button' or " +
                 "@resource-id='com.google.android.youtube:id/player_overflow_button' or " +
                 "@resource-id='com.google.android.youtube:id/overflow_button' or " +
-                "contains(@content-desc, 'More options') or contains(@content-desc, 'Tùy chọn khác') or contains(@content-desc, '설정') or contains(@content-desc, 'Cài đặt')]"
+                "contains(@content-desc, 'More options') or contains(@content-desc, 'Tùy chọn khác') or " +
+                "contains(@content-desc, '설정') or contains(@content-desc, 'Cài đặt') or contains(@content-desc, '옵션 더보기') or contains(@content-desc, '옵션')]"
             );
 
             if (btnNode != null)
@@ -146,5 +147,33 @@ public static class LiveChatOverlayHelper
         await AdbClientGeneral.Instance.TapAsync(device, cornerX, cornerY, ct).ConfigureAwait(false);
         await Task.Delay(800, ct).ConfigureAwait(false);
         return true;
+    }
+
+    /// <summary>
+    /// Tìm và nhấn nút '추가 작업' (More actions / Tùy chọn khác) trên thanh hành động nằm ngay dưới video.
+    /// </summary>
+    public static async Task<bool> TapActionRowMoreButtonAsync(DeviceData device, CancellationToken ct = default)
+    {
+        var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+        if (doc == null) return false;
+
+        var moreNode = doc.SelectSingleNode(
+            "//node[(@class='android.widget.Button' or @class='android.widget.ImageView' or @class='android.view.ViewGroup') and " +
+            "(@content-desc='추가 작업' or @content-desc='More actions' or @content-desc='Tùy chọn khác' or @content-desc='작업 메뉴' or " +
+            "contains(@content-desc, '추가 작업') or contains(@content-desc, 'More actions') or contains(@content-desc, 'Tùy chọn khác'))]"
+        );
+
+        if (moreNode != null)
+        {
+            var elem = AdbUiXmlDumper.ParseElement(moreNode);
+            if (elem != null)
+            {
+                await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                await Task.Delay(1000, ct).ConfigureAwait(false);
+                return true;
+            }
+        }
+
+        return false;
     }
 }

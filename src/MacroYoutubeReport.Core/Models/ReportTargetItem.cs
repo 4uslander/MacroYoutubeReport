@@ -81,21 +81,23 @@ public sealed class ReportTargetItem
         }
 
         string combined = $"{foundTitle} {foundChannel}";
+        string cleanTitle = VideoTitle?.TrimEnd('.', '…', ' ') ?? string.Empty;
+        string cleanChannel = ChannelName?.TrimEnd('.', '…', ' ') ?? string.Empty;
 
-        if (!string.IsNullOrWhiteSpace(VideoTitle) && !string.IsNullOrWhiteSpace(ChannelName))
+        if (!string.IsNullOrWhiteSpace(cleanTitle) && !string.IsNullOrWhiteSpace(cleanChannel))
         {
-            return combined.Contains(VideoTitle.Trim(), StringComparison.OrdinalIgnoreCase) &&
-                   combined.Contains(ChannelName.Trim(), StringComparison.OrdinalIgnoreCase);
+            return combined.Contains(cleanTitle, StringComparison.OrdinalIgnoreCase) &&
+                   combined.Contains(cleanChannel, StringComparison.OrdinalIgnoreCase);
         }
 
-        if (!string.IsNullOrWhiteSpace(VideoTitle))
+        if (!string.IsNullOrWhiteSpace(cleanTitle))
         {
-            return combined.Contains(VideoTitle.Trim(), StringComparison.OrdinalIgnoreCase);
+            return combined.Contains(cleanTitle, StringComparison.OrdinalIgnoreCase);
         }
 
-        if (!string.IsNullOrWhiteSpace(ChannelName))
+        if (!string.IsNullOrWhiteSpace(cleanChannel))
         {
-            return combined.Contains(ChannelName.Trim(), StringComparison.OrdinalIgnoreCase);
+            return combined.Contains(cleanChannel, StringComparison.OrdinalIgnoreCase);
         }
 
         if (!string.IsNullOrWhiteSpace(Keyword))

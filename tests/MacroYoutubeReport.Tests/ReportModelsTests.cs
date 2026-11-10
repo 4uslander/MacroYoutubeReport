@@ -89,4 +89,52 @@ public class ReportModelsTests
         Assert.True(config.SearchFilter.LiveOnly);
         Assert.Equal(SearchUploadDateFilter.Today, config.SearchFilter.UploadDate);
     }
+
+    [Fact]
+    public void LoadReasonTemplatesFromFile_LoadsAndSeparatesByCategories()
+    {
+        string tempFile = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(tempFile, @"
+[FinancialOrCryptoScam]
+Financial scam reason 1
+Financial scam reason 2
+
+[SpamOrMisleading]
+Spam reason 1
+Spam reason 2
+");
+
+            var config = new ReportScenarioConfig();
+            config.LoadReasonTemplatesFromFile(tempFile);
+
+            Assert.True(config.ReasonCategoryTemplates.ContainsKey(ReportReasonCategory.FinancialOrCryptoScam));
+            Assert.True(config.ReasonCategoryTemplates.ContainsKey(ReportReasonCategory.SpamOrMisleading));
+            Assert.Equal(2, config.ReasonCategoryTemplates[ReportReasonCategory.FinancialOrCryptoScam].Count);
+            Assert.Equal(2, config.ReasonCategoryTemplates[ReportReasonCategory.SpamOrMisleading].Count);
+            Assert.Contains("Financial scam reason 1", config.ReasonCategoryTemplates[ReportReasonCategory.FinancialOrCryptoScam]);
+            Assert.Contains("Spam reason 2", config.ReasonCategoryTemplates[ReportReasonCategory.SpamOrMisleading]);
+        }
+        finally
+        {
+            if (File.Exists(tempFile)) File.Delete(tempFile);
+        }
+    }
+
+    [Fact]
+    public void GetNextReason_PrioritizesCategoryTemplatesFromFileOverDefault()
+    {
+        var config = new ReportScenarioConfig
+        {
+            ReasonPool = new() { new ReportReasonConfig(ReportReasonCategory.FinancialOrCryptoScam, "Default hardcoded") },
+            ReasonCategoryTemplates = new()
+            {
+                [ReportReasonCategory.FinancialOrCryptoScam] = new() { "File Category Detail 1" }
+            }
+        };
+
+        var reason = config.GetNextReason();
+        Assert.Equal("File Category Detail 1", reason.CustomDetails);
+    }
 }

@@ -93,6 +93,7 @@ public sealed class ReportScenarioConfig
         try
         {
             ReasonDetailsFilePath = filePath;
+            ReasonCategoryTemplates.Clear();
             var lines = File.ReadAllLines(filePath);
             ReportReasonCategory currentCategory = ReportReasonCategory.FinancialOrCryptoScam;
             var allTemplates = new List<string>();
@@ -149,6 +150,32 @@ public sealed class ReportScenarioConfig
     }
 
     /// <summary>
+    /// Lấy câu giải trình chi tiết cho một danh mục lý do cụ thể, ưu tiên từ file cấu hình.
+    /// </summary>
+    public string GetDetailTextForCategory(ReportReasonCategory category, Random? random = null)
+    {
+        random ??= Random.Shared;
+        if (ReasonCategoryTemplates.TryGetValue(category, out var catTemplates) && catTemplates.Count > 0)
+        {
+            return catTemplates[random.Next(catTemplates.Count)];
+        }
+
+        if (DetailTextTemplates.Count > 0)
+        {
+            return DetailTextTemplates[random.Next(DetailTextTemplates.Count)];
+        }
+
+        return category switch
+        {
+            ReportReasonCategory.FinancialOrCryptoScam => "이 방송은 불법 해외선물 대여계좌 및 사기성 리딩방을 홍보하고 있습니다.",
+            ReportReasonCategory.SpamOrMisleading => "스팸성 링크 및 불법 투자 유도성 콘텐츠입니다.",
+            ReportReasonCategory.Misinformation => "시청자를 기만하는 조작된 허위 정보 방송입니다.",
+            ReportReasonCategory.HarmfulDangerousActs => "시청자에게 위험하거나 불법적인 금융 거래를 유도하고 있습니다.",
+            _ => "YouTube 커뮤니티 가이드라인을 심각하게 위반하는 콘텐츠입니다."
+        };
+    }
+
+    /// <summary>
     /// Chọn lý do tiếp theo (ngẫu nhiên hoặc tuần tự).
     /// </summary>
     public ReportReasonConfig GetNextReason(Random? random = null)
@@ -161,28 +188,23 @@ public sealed class ReportScenarioConfig
         random ??= Random.Shared;
         var chosen = RotateReasons ? ReasonPool[random.Next(ReasonPool.Count)] : ReasonPool[0];
 
-        // Lấy câu giải trình chi tiết từ kho templates tương ứng với danh mục lý do
-        string? detail = chosen.CustomDetails;
-        if (string.IsNullOrWhiteSpace(detail))
+        // Lấy câu giải trình chi tiết: ƯU TIÊN CAO NHẤT từ kho templates của danh mục (ReasonCategoryTemplates từ file cấu hình)
+        string? detail = null;
+        if (ReasonCategoryTemplates.TryGetValue(chosen.Category, out var catTemplates) && catTemplates.Count > 0)
         {
-            if (ReasonCategoryTemplates.TryGetValue(chosen.Category, out var catTemplates) && catTemplates.Count > 0)
-            {
-                detail = catTemplates[random.Next(catTemplates.Count)];
-            }
-            else if (DetailTextTemplates.Count > 0)
-            {
-                detail = DetailTextTemplates[random.Next(DetailTextTemplates.Count)];
-            }
-            else
-            {
-                detail = chosen.Category switch
-                {
-                    ReportReasonCategory.FinancialOrCryptoScam => "이 방송은 불법 해외선물 대여계좌 및 사기성 리딩방을 홍보하고 있습니다.",
-                    ReportReasonCategory.SpamOrMisleading => "스팸성 링크 및 불법 투자 유도성 콘텐츠입니다.",
-                    ReportReasonCategory.Misinformation => "시청자를 기만하는 조작된 허위 정보 방송입니다.",
-                    _ => "YouTube 커뮤니티 가이드라인을 심각하게 위반하는 콘텐츠입니다."
-                };
-            }
+            detail = catTemplates[random.Next(catTemplates.Count)];
+        }
+        else if (!string.IsNullOrWhiteSpace(chosen.CustomDetails))
+        {
+            detail = chosen.CustomDetails;
+        }
+        else if (DetailTextTemplates.Count > 0)
+        {
+            detail = DetailTextTemplates[random.Next(DetailTextTemplates.Count)];
+        }
+        else
+        {
+            detail = GetDetailTextForCategory(chosen.Category, random);
         }
 
         return new ReportReasonConfig(chosen.Category, detail, chosen.SubCategoryKey, chosen.TargetTimestamp)
@@ -251,8 +273,8 @@ public sealed class ReportScenarioConfig
         },
         ReasonPool = new()
         {
-            new ReportReasonConfig(ReportReasonCategory.FinancialOrCryptoScam, "Livestream phát tán mô hình lừa đảo tài chính và tiền ảo giả mạo."),
-            new ReportReasonConfig(ReportReasonCategory.SpamOrMisleading, "Gian lận tài chính, chiêu trò tặng coin nhân đôi và bot spam link độc hại.")
+            new ReportReasonConfig(ReportReasonCategory.FinancialOrCryptoScam),
+            new ReportReasonConfig(ReportReasonCategory.SpamOrMisleading)
         },
         DetailTextTemplates = new()
         {

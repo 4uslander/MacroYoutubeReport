@@ -881,64 +881,82 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         }
 
         // 4. Xử lý Trang 2: Nhập nội dung lý do báo cáo vào ô EditText & Bấm nút gửi Báo cáo
-        await Task.Delay(1200, ct).ConfigureAwait(false);
-        var page2Doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+        XmlDocument? page2Doc = null;
+        for (int p2Wait = 0; p2Wait < 4; p2Wait++)
+        {
+            await Task.Delay(800, ct).ConfigureAwait(false);
+            page2Doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (page2Doc != null && page2Doc.SelectSingleNode("//node[contains(@text, '세부정보') or contains(@content-desc, '세부정보') or @class='android.widget.EditText' or contains(@text, '자세한 내용')]") != null)
+            {
+                break;
+            }
+        }
+
         if (page2Doc != null)
         {
-            // 4.1. Nhập văn bản giải trình vào ô EditText nếu có
-            var editNode = page2Doc.SelectSingleNode("//android.widget.EditText");
+            // 4.1. Nhập văn bản giải trình vào ô EditText
+            // Tag trong UIAutomator luôn là <node ... class="android.widget.EditText">
+            var editNode = page2Doc.SelectSingleNode(
+                "//node[@class='android.widget.EditText' or @text='세부정보 추가...' or contains(@text, '세부정보 추가') or " +
+                "contains(@text, 'Add details') or contains(@text, 'Chi tiết') or contains(@content-desc, '세부정보') or " +
+                "contains(@resource-id, 'edit_text') or contains(@resource-id, 'detail')]");
+
+            bool focusedInput = false;
             if (editNode != null)
             {
                 var editElem = AdbUiXmlDumper.ParseElement(editNode);
                 if (editElem != null)
                 {
                     await AdbUiXmlDumper.Instance.TapElementAsync(device, editElem, ct).ConfigureAwait(false);
-                    await Task.Delay(500, ct).ConfigureAwait(false);
-
-                    string detailText = !string.IsNullOrWhiteSpace(reasonConfig.CustomDetails)
-                        ? reasonConfig.CustomDetails
-                        : "이 방송은 불법 해외선물 대여계좌 및 사기성 리딩방을 홍보하고 있습니다.";
-
-                    await AdbImeHelper.InputTextAsync(device, detailText, ct).ConfigureAwait(false);
-                    await Task.Delay(600, ct).ConfigureAwait(false);
-
-                    // Ẩn bàn phím ảo để lộ nút 신고 bên dưới
-                    await AdbClientGeneral.Instance.PressBackAsync(device, ct).ConfigureAwait(false);
-                    await Task.Delay(600, ct).ConfigureAwait(false);
+                    focusedInput = true;
                 }
             }
 
+            if (!focusedInput)
+            {
+                // Fallback tọa độ vùng ô nhập (X = 50%, Y ~ 42% chiều cao màn hình)
+                int inX = _screenResolution.Width / 2;
+                int inY = (int)(_screenResolution.Height * 0.42);
+                await AdbClientGeneral.Instance.TapAsync(device, inX, inY, ct).ConfigureAwait(false);
+            }
+
+            await Task.Delay(700, ct).ConfigureAwait(false);
+
+            // Nội dung giải trình được lấy từ file cấu hình theo từng lý do cụ thể
+            string detailText = !string.IsNullOrWhiteSpace(reasonConfig.CustomDetails)
+                ? reasonConfig.CustomDetails
+                : "이 방송은 불법 해외선물 대여계좌 및 사기성 리딩방을 홍보하고 있습니다.";
+
+            await AdbImeHelper.InputTextAsync(device, detailText, ct).ConfigureAwait(false);
+            await Task.Delay(800, ct).ConfigureAwait(false);
+
+            // Ẩn bàn phím ảo (Back key) để hiển thị rõ nút pill '신고' ở đáy màn hình
+            await AdbClientGeneral.Instance.PressBackAsync(device, ct).ConfigureAwait(false);
+            await Task.Delay(800, ct).ConfigureAwait(false);
+
             // 4.2. Nhấn nút gửi báo cáo chính thức: '신고' / 'Báo cáo' / 'Report' / 'Submit'
-            // ĐẶC BIỆT LƯU Ý: Phải chọn Button ở nửa dưới màn hình (Bounds.Y >= screenHeight * 0.45)
-            // để TUYỆT ĐỐI KHÔNG bấm nhầm vào chữ '신고' trên thanh tiêu đề đầu trang (Y ~ 144)
+            // ĐẶC BIỆT LƯU Ý: Nút '신고' ở đáy màn hình là một nút pill đen lớn (Bounds.Y >= screenHeight * 0.60)
+            // TUYỆT ĐỐI KHÔNG bấm nhầm vào chữ '신고' trên thanh tiêu đề đầu trang (Y ~ 144)
             var submitDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             bool tappedSubmit = false;
 
             if (submitDoc != null)
             {
-                var candidateButtons = submitDoc.SelectNodes("//android.widget.Button | //node[@class='android.widget.Button']");
-                if (candidateButtons != null)
-                {
-                    foreach (XmlNode btn in candidateButtons)
-                    {
-                        string desc = btn.Attributes?["content-desc"]?.Value ?? string.Empty;
-                        string text = btn.Attributes?["text"]?.Value ?? string.Empty;
-                        string bName = $"{text} {desc}".Trim();
+                var candidateNodes = submitDoc.SelectNodes(
+                    "//node[(@text='신고' or @content-desc='신고' or @text='Report' or @content-desc='Report' or @text='Báo cáo' or @content-desc='Báo cáo' or @text='Submit' or @content-desc='Submit') or " +
+                    "((contains(@text, '신고') or contains(@content-desc, '신고') or contains(@text, 'Report') or contains(@content-desc, 'Report')) and (@clickable='true' or @class='android.widget.Button' or @class='android.widget.TextView' or @class='android.view.ViewGroup'))]");
 
-                        if (bName.Contains("신고", StringComparison.OrdinalIgnoreCase) ||
-                            bName.Contains("Report", StringComparison.OrdinalIgnoreCase) ||
-                            bName.Contains("Báo cáo", StringComparison.OrdinalIgnoreCase) ||
-                            bName.Contains("Submit", StringComparison.OrdinalIgnoreCase) ||
-                            bName.Contains("Gửi", StringComparison.OrdinalIgnoreCase))
+                if (candidateNodes != null)
+                {
+                    foreach (XmlNode n in candidateNodes)
+                    {
+                        var elem = AdbUiXmlDumper.ParseElement(n);
+                        if (elem != null && elem.Bounds.Y >= (_screenResolution.Height * 0.60))
                         {
-                            var elem = AdbUiXmlDumper.ParseElement(btn);
-                            if (elem != null && elem.Bounds.Y >= (_screenResolution.Height * 0.45))
-                            {
-                                await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
-                                await Task.Delay(2000, ct).ConfigureAwait(false);
-                                tappedSubmit = true;
-                                break;
-                            }
+                            await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                            await Task.Delay(2500, ct).ConfigureAwait(false);
+                            tappedSubmit = true;
+                            break;
                         }
                     }
                 }
@@ -946,39 +964,35 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
             if (!tappedSubmit)
             {
-                // Fallback: bấm thẳng vào vùng nút gửi ở đáy màn hình (X = 50%, Y ~ 90%)
+                // Fallback: bấm thẳng vào vùng nút pill gửi ở đáy màn hình (X = 50%, Y ~ 87%)
                 int subX = _screenResolution.Width / 2;
-                int subY = (int)(_screenResolution.Height * 0.90);
+                int subY = (int)(_screenResolution.Height * 0.87);
                 await AdbClientGeneral.Instance.TapAsync(device, subX, subY, ct).ConfigureAwait(false);
-                await Task.Delay(2000, ct).ConfigureAwait(false);
+                await Task.Delay(2500, ct).ConfigureAwait(false);
             }
         }
 
         // 5. Xác nhận & Đóng modal cảm ơn hoàn tất ('확인' / '닫기' / 'Close' / 'OK')
-        var ackDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-        if (ackDoc != null)
+        for (int k = 0; k < 3; k++)
         {
-            var ackButtons = ackDoc.SelectNodes("//node[(@class='android.widget.Button' or @class='android.view.ViewGroup' or @class='android.widget.TextView') and (@text!='' or @content-desc!='')]");
-            if (ackButtons != null)
+            var ackDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (ackDoc != null)
             {
-                foreach (XmlNode n in ackButtons)
-                {
-                    string t = n.Attributes?["text"]?.Value ?? string.Empty;
-                    string d = n.Attributes?["content-desc"]?.Value ?? string.Empty;
-                    string c = $"{t} {d}".Trim();
+                var ackNode = ackDoc.SelectSingleNode(
+                    "//node[(@text='확인' or @content-desc='확인' or @text='닫기' or @content-desc='닫기' or @text='OK' or @text='Close' or @text='Đóng' or contains(@text, '확인') or contains(@text, '닫기')) and (@clickable='true' or @class='android.widget.Button' or @class='android.widget.TextView')]");
 
-                    if (c.Contains("확인") || c.Contains("닫기") || c.Contains("Close") || c.Contains("Đóng") || c.Contains("OK"))
+                if (ackNode != null)
+                {
+                    var elem = AdbUiXmlDumper.ParseElement(ackNode);
+                    if (elem != null)
                     {
-                        var elem = AdbUiXmlDumper.ParseElement(n);
-                        if (elem != null && elem.Bounds.Y >= (_screenResolution.Height * 0.50))
-                        {
-                            await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
-                            await Task.Delay(800, ct).ConfigureAwait(false);
-                            break;
-                        }
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                        await Task.Delay(800, ct).ConfigureAwait(false);
+                        break;
                     }
                 }
             }
+            await Task.Delay(500, ct).ConfigureAwait(false);
         }
 
         return true;

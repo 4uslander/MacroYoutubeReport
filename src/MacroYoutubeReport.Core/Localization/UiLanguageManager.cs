@@ -18,6 +18,12 @@ public static class UiLanguageManager
             [AppLanguage.English] = ["Spam or misleading", "Spam or misleading content", "Spam", "Misleading"],
             [AppLanguage.Korean] = ["스팸 또는 혼동을 야기하는 콘텐츠", "스팸 또는 혼동", "스팸", "혼동"]
         },
+        [ReportReasonCategory.FinancialOrCryptoScam] = new()
+        {
+            [AppLanguage.Vietnamese] = ["Gian lận hoặc lừa đảo", "lừa đảo tài chính", "tiền ảo", "lừa đảo", "Spam hoặc gây hiểu nhầm"],
+            [AppLanguage.English] = ["Scams or fraud", "Financial scam", "Crypto scam", "Fraud", "Spam or misleading"],
+            [AppLanguage.Korean] = ["사기 또는 혼동", "사기", "금융 사기", "스팸 또는 혼동을 야기하는 콘텐츠"]
+        },
         [ReportReasonCategory.SexualContent] = new()
         {
             [AppLanguage.Vietnamese] = ["Nội dung khiêu dâm", "khiêu dâm", "Nội dung người lớn"],
@@ -252,6 +258,11 @@ public static class UiLanguageManager
         // Target Input
         ["Cài đặt Mục tiêu"] = ("목표 설정", "Target Settings"),
         ["Loại:"] = ("구분:", "Type:"),
+        ["LiveStream"] = ("실시간 스트림", "Live Stream"),
+        ["Live Stream (Trực tiếp)"] = ("실시간 스트림", "Live Stream"),
+        ["6. Báo cáo Livestream lừa đảo tài chính / crypto"] = ("6. 금융/가상화폐 사기 실시간 스트림 신고", "6. Report Financial/Crypto Scam Live Stream"),
+        ["Lừa đảo tài chính / Tiền ảo (Scams & Fraud)"] = ("금융/가상화폐 사기 (Scams & Fraud)", "Financial / Crypto Scam (Scams & Fraud)"),
+        ["FinancialOrCryptoScam"] = ("금융 사기", "Financial/Crypto Scam"),
         ["Từ khóa:"] = ("키워드:", "Keyword:"),
         ["Tên kênh:"] = ("채널명:", "Channel:"),
         ["Tiêu đề:"] = ("제목:", "Title:"),

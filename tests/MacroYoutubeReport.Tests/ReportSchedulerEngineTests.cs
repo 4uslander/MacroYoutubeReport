@@ -30,6 +30,7 @@ public class ReportSchedulerEngineTests
         public Task<bool> SubmitVideoReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default) => Task.FromResult(true);
         public Task<bool> SubmitChannelReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default) => Task.FromResult(true);
         public Task<bool> SubmitShortsReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default) => Task.FromResult(true);
+        public Task<bool> SubmitLiveStreamReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default) => Task.FromResult(true);
         public Task<bool> SubmitCommentReportAsync(string commentAuthorOrKeyword, ReportReasonConfig reasonConfig, CancellationToken ct = default) => Task.FromResult(true);
         public Task<bool> VerifyReportSubmittedAsync(CancellationToken ct = default) => Task.FromResult(true);
         public Task<string> CaptureScreenshotAsync(string stepPrefix, CancellationToken ct = default) => Task.FromResult("shot.png");

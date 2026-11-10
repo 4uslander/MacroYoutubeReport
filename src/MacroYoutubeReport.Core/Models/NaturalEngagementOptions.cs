@@ -22,6 +22,16 @@ public sealed class NaturalEngagementOptions
     public bool EnableVolumeOrProgressBarTouch { get; set; } = false;
 
     /// <summary>
+    /// Cho phép cuộn đọc Live Chat trong livestream trước khi đóng khung chat.
+    /// </summary>
+    public bool EnableLiveChatScroll { get; set; } = true;
+
+    /// <summary>
+    /// Tự động đóng khung Live Chat để làm lộ thanh nút Báo cáo và Player controls.
+    /// </summary>
+    public bool AutoCloseLiveChat { get; set; } = true;
+
+    /// <summary>
     /// Số lượng vi hành vi tối thiểu trong lúc xem.
     /// </summary>
     public int MinActions { get; set; } = 1;

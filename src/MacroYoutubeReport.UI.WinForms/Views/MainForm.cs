@@ -186,6 +186,7 @@ public partial class MainForm : Form, IMainView
             {
                 1 => ReportTargetType.Channel,
                 2 => ReportTargetType.Shorts,
+                3 => ReportTargetType.LiveStream,
                 _ => ReportTargetType.Video
             };
 
@@ -645,6 +646,7 @@ public partial class MainForm : Form, IMainView
                 string interval = $"{numMinWatch.Value}-{numMaxWatch.Value}s";
                 string progress = $"{t.ReportsCompleted}/{t.MaxReportsRequired}";
                 string status = t.ReportsCompleted >= t.MaxReportsRequired ? "Hoàn thành" : "Chờ xử lý";
+                bool isLive = t.TargetType == ReportTargetType.LiveStream;
                 dgvTasks.Rows.Add(
                     "Bắt đầu",
                     "Khởi động lại",
@@ -657,7 +659,7 @@ public partial class MainForm : Form, IMainView
                     t.TargetUrl ?? string.Empty,
                     interval,
                     true,
-                    true,
+                    isLive,
                     progress,
                     status);
             }
@@ -666,6 +668,17 @@ public partial class MainForm : Form, IMainView
 
     public ReportScenarioConfig GetScenarioConfig()
     {
+        if (cmbScenario.SelectedIndex == 5 || (cmbScenario.SelectedItem?.ToString()?.Contains("Livestream") == true))
+        {
+            var liveConfig = ReportScenarioConfig.CreateLiveStreamFinancialScamConfig();
+            liveConfig.MinWatchDurationSeconds = (int)numMinWatch.Value;
+            liveConfig.MaxWatchDurationSeconds = (int)numMaxWatch.Value;
+            liveConfig.CooldownBetweenReportsSeconds = (int)numCooldown.Value;
+            liveConfig.EnableNaturalEngagement = chkNaturalEngagement.Checked;
+            liveConfig.RotateReasons = chkRotateReasons.Checked;
+            return liveConfig;
+        }
+
         var config = new ReportScenarioConfig
         {
             ScenarioName = cmbScenario.SelectedItem?.ToString() ?? "Kịch bản mặc định",
@@ -678,17 +691,18 @@ public partial class MainForm : Form, IMainView
 
         var selectedReason = cmbMainReason.SelectedIndex switch
         {
-            0 => ReportReasonCategory.SpamOrMisleading,
-            1 => ReportReasonCategory.HarmfulDangerousActs,
-            2 => ReportReasonCategory.Misinformation,
-            3 => ReportReasonCategory.HatefulOrAbusive,
-            4 => ReportReasonCategory.HarassmentOrBullying,
-            5 => ReportReasonCategory.ViolentOrRepulsive,
-            6 => ReportReasonCategory.SexualContent,
-            7 => ReportReasonCategory.ChildAbuse,
-            8 => ReportReasonCategory.PromotesTerrorism,
-            9 => ReportReasonCategory.InfringesMyRights,
-            _ => ReportReasonCategory.SpamOrMisleading
+            0 => ReportReasonCategory.FinancialOrCryptoScam,
+            1 => ReportReasonCategory.SpamOrMisleading,
+            2 => ReportReasonCategory.HarmfulDangerousActs,
+            3 => ReportReasonCategory.Misinformation,
+            4 => ReportReasonCategory.HatefulOrAbusive,
+            5 => ReportReasonCategory.HarassmentOrBullying,
+            6 => ReportReasonCategory.ViolentOrRepulsive,
+            7 => ReportReasonCategory.SexualContent,
+            8 => ReportReasonCategory.ChildAbuse,
+            9 => ReportReasonCategory.PromotesTerrorism,
+            10 => ReportReasonCategory.InfringesMyRights,
+            _ => ReportReasonCategory.FinancialOrCryptoScam
         };
 
         if (chkRotateReasons.Checked)

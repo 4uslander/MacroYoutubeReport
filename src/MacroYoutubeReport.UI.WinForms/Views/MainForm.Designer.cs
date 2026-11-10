@@ -327,7 +327,7 @@ partial class MainForm
         this.cmbTargetType.Location = new Point(80, 22);
         this.cmbTargetType.Size = new Size(225, 23);
         this.cmbTargetType.DropDownStyle = ComboBoxStyle.DropDownList;
-        this.cmbTargetType.Items.AddRange(new object[] { "Video", "Kênh (Channel)", "Shorts" });
+        this.cmbTargetType.Items.AddRange(new object[] { "Video", "Kênh (Channel)", "Shorts", "LiveStream (Trực tiếp)" });
         this.cmbTargetType.SelectedIndex = 0;
 
         this.lblKeyword.Text = "Từ khóa:";
@@ -388,7 +388,8 @@ partial class MainForm
             "2. Truy cập URL trực tiếp và báo cáo",
             "3. Báo cáo kênh vi phạm bản quyền/spam",
             "4. Báo cáo video Shorts",
-            "5. Báo cáo bình luận độc hại"
+            "5. Báo cáo bình luận độc hại",
+            "6. Báo cáo Livestream lừa đảo tài chính / crypto"
         });
         this.cmbScenario.SelectedIndex = 0;
 
@@ -399,6 +400,7 @@ partial class MainForm
         this.cmbMainReason.Size = new Size(225, 23);
         this.cmbMainReason.DropDownStyle = ComboBoxStyle.DropDownList;
         this.cmbMainReason.Items.AddRange(new object[] {
+            "Lừa đảo tài chính / Tiền ảo (Scams & Fraud)",
             "Spam hoặc gây hiểu lầm",
             "Hành vi có hại hoặc nguy hiểm",
             "Thông tin sai lệch",

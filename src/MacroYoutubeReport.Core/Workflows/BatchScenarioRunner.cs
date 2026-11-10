@@ -75,10 +75,12 @@ public sealed class BatchScenarioRunner
             record.Category = reason.Category;
             record.ReasonDetails = reason.CustomDetails;
 
-            var steps = target.TargetType switch
+            var steps = (target.TargetType, config.ScenarioName.Contains("Livestream", StringComparison.OrdinalIgnoreCase)) switch
             {
-                ReportTargetType.Channel => ScenarioDefinitions.CreateChannelReportScenario(target, config),
-                ReportTargetType.Shorts => ScenarioDefinitions.CreateShortsReportScenario(target, config),
+                (ReportTargetType.LiveStream, _) => ScenarioDefinitions.CreateLiveStreamFinancialScamScenario(target, config),
+                (_, true) => ScenarioDefinitions.CreateLiveStreamFinancialScamScenario(target, config),
+                (ReportTargetType.Channel, _) => ScenarioDefinitions.CreateChannelReportScenario(target, config),
+                (ReportTargetType.Shorts, _) => ScenarioDefinitions.CreateShortsReportScenario(target, config),
                 _ => !string.IsNullOrWhiteSpace(target.TargetUrl) && string.IsNullOrWhiteSpace(target.Keyword)
                     ? ScenarioDefinitions.CreateDirectUrlReportVideoScenario(target, config)
                     : ScenarioDefinitions.CreateSearchAndReportVideoScenario(target, config)

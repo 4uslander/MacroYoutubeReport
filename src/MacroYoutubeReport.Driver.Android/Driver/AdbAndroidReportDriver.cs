@@ -306,10 +306,18 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             {
                 await Task.Delay(rnd.Next(4000, 8000), ct).ConfigureAwait(false);
 
-                await AdbClientGeneral.Instance.SwipeAsync(device, midX, scrollStartY, midX, scrollEndY, 400, ct).ConfigureAwait(false);
-                await Task.Delay(rnd.Next(3000, 6000), ct).ConfigureAwait(false);
-
-                await AdbClientGeneral.Instance.SwipeAsync(device, midX, scrollEndY, midX, scrollStartY, 400, ct).ConfigureAwait(false);
+                // Nếu là livestream và chat đang mở, cuộn nhẹ live chat
+                bool isChatOpen = await LiveChatOverlayHelper.IsLiveChatOpenAsync(device, ct).ConfigureAwait(false);
+                if (isChatOpen)
+                {
+                    await LiveChatOverlayHelper.ScrollLiveChatAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    await AdbClientGeneral.Instance.SwipeAsync(device, midX, scrollStartY, midX, scrollEndY, 400, ct).ConfigureAwait(false);
+                    await Task.Delay(rnd.Next(3000, 6000), ct).ConfigureAwait(false);
+                    await AdbClientGeneral.Instance.SwipeAsync(device, midX, scrollEndY, midX, scrollStartY, 400, ct).ConfigureAwait(false);
+                }
                 didScrollComments = true;
             }
 
@@ -581,6 +589,49 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         }
 
         return false;
+    }
+
+    public async Task<bool> SubmitLiveStreamReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default)
+    {
+        var device = EnsureDevice();
+
+        // 1. Kiểm tra và đóng Live Chat nếu đang mở che khuất các nút hành động của video
+        bool wasChatOpen = await LiveChatOverlayHelper.IsLiveChatOpenAsync(device, ct).ConfigureAwait(false);
+        if (wasChatOpen)
+        {
+            await LiveChatOverlayHelper.EnsureLiveChatClosedAsync(device, ct).ConfigureAwait(false);
+            await Task.Delay(1000, ct).ConfigureAwait(false);
+        }
+
+        // 2. Thử mở menu Báo cáo dưới video trước
+        bool opened = await OpenReportMenuAsync(ct).ConfigureAwait(false);
+
+        // 3. Nếu không mở được dưới video, dùng phương thức chạm đánh thức Player Controls
+        if (!opened)
+        {
+            await LiveChatOverlayHelper.AwakenPlayerControlsAndOpenSettingsAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
+            await Task.Delay(1000, ct).ConfigureAwait(false);
+
+            // Tìm nút Báo cáo trong popup menu cài đặt
+            var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (doc != null)
+            {
+                var reportNode = doc.SelectSingleNode("//node[contains(@text, 'Báo cáo') or contains(@text, 'Report') or contains(@text, '신고')]");
+                if (reportNode != null)
+                {
+                    var elem = AdbUiXmlDumper.ParseElement(reportNode);
+                    if (elem != null)
+                    {
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                        await Task.Delay(1200, ct).ConfigureAwait(false);
+                        opened = true;
+                    }
+                }
+            }
+        }
+
+        // 4. Thực hiện nộp báo cáo (chọn Spam/Scam, chọn Gian lận/Lừa đảo, điền spin text)
+        return await SubmitVideoReportAsync(reasonConfig, ct).ConfigureAwait(false);
     }
 
     public async Task<bool> SubmitCommentReportAsync(string commentAuthorOrKeyword, ReportReasonConfig reasonConfig, CancellationToken ct = default)

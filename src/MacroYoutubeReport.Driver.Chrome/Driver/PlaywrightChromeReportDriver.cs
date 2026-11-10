@@ -383,6 +383,46 @@ public sealed class PlaywrightChromeReportDriver : IYouTubeReportDriver
         return false;
     }
 
+    public async Task<bool> SubmitLiveStreamReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default)
+    {
+        var page = EnsurePage();
+
+        var hideChatBtn = await page.QuerySelectorAsync("#show-hide-button button, ytd-live-chat-frame #show-hide-button").ConfigureAwait(false);
+        if (hideChatBtn != null)
+        {
+            try
+            {
+                await hideChatBtn.ClickAsync().ConfigureAwait(false);
+                await Task.Delay(800, ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Bỏ qua nếu không click được
+            }
+        }
+
+        bool opened = await OpenReportMenuAsync(ct).ConfigureAwait(false);
+        if (!opened)
+        {
+            var moreBtn = await page.QuerySelectorAsync("ytd-watch-metadata #actions ytd-menu-renderer button, button[aria-label*='More'], button[aria-label*='khác']").ConfigureAwait(false);
+            if (moreBtn != null)
+            {
+                await moreBtn.ClickAsync().ConfigureAwait(false);
+                await Task.Delay(800, ct).ConfigureAwait(false);
+
+                var reportItem = await page.QuerySelectorAsync("ytd-menu-service-item-renderer:has-text('Report'), ytd-menu-service-item-renderer:has-text('Báo cáo'), ytd-menu-service-item-renderer:has-text('신고')").ConfigureAwait(false);
+                if (reportItem != null)
+                {
+                    await reportItem.ClickAsync().ConfigureAwait(false);
+                    await Task.Delay(1000, ct).ConfigureAwait(false);
+                    opened = true;
+                }
+            }
+        }
+
+        return await SubmitVideoReportAsync(reasonConfig, ct).ConfigureAwait(false);
+    }
+
     public async Task<bool> SubmitCommentReportAsync(string commentAuthorOrKeyword, ReportReasonConfig reasonConfig, CancellationToken ct = default)
     {
         var page = EnsurePage();

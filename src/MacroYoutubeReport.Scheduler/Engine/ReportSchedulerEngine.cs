@@ -208,10 +208,12 @@ public sealed class ReportSchedulerEngine : IAsyncDisposable
         var proxy = _proxyRotator.GetNextProxy();
         await using var driver = _driverFactory.CreateDriver(request.PreferredPlatform, deviceId, proxy);
 
-        var steps = request.Target.TargetType switch
+        var steps = (request.Target.TargetType, request.ScenarioConfig.ScenarioName.Contains("Livestream", StringComparison.OrdinalIgnoreCase)) switch
         {
-            ReportTargetType.Channel => ScenarioDefinitions.CreateChannelReportScenario(request.Target, request.ScenarioConfig),
-            ReportTargetType.Shorts => ScenarioDefinitions.CreateShortsReportScenario(request.Target, request.ScenarioConfig),
+            (ReportTargetType.LiveStream, _) => ScenarioDefinitions.CreateLiveStreamFinancialScamScenario(request.Target, request.ScenarioConfig),
+            (_, true) => ScenarioDefinitions.CreateLiveStreamFinancialScamScenario(request.Target, request.ScenarioConfig),
+            (ReportTargetType.Channel, _) => ScenarioDefinitions.CreateChannelReportScenario(request.Target, request.ScenarioConfig),
+            (ReportTargetType.Shorts, _) => ScenarioDefinitions.CreateShortsReportScenario(request.Target, request.ScenarioConfig),
             _ => !string.IsNullOrWhiteSpace(request.Target.TargetUrl) && string.IsNullOrWhiteSpace(request.Target.Keyword)
                 ? ScenarioDefinitions.CreateDirectUrlReportVideoScenario(request.Target, request.ScenarioConfig)
                 : ScenarioDefinitions.CreateSearchAndReportVideoScenario(request.Target, request.ScenarioConfig)

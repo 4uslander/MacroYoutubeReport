@@ -18,5 +18,10 @@ public enum ReportTargetType
     /// <summary>
     /// Báo cáo video ngắn Shorts.
     /// </summary>
-    Shorts = 3
+    Shorts = 3,
+
+    /// <summary>
+    /// Báo cáo luồng phát trực tiếp (Live Stream), tự động xử lý đóng/mở Live Chat overlay.
+    /// </summary>
+    LiveStream = 4
 }

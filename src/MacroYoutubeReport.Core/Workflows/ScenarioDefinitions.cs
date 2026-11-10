@@ -1,3 +1,4 @@
+using MacroYoutubeReport.Core.Enums;
 using MacroYoutubeReport.Core.Models;
 
 namespace MacroYoutubeReport.Core.Workflows;
@@ -13,6 +14,7 @@ public static class ScenarioDefinitions
     public const string ScenarioChannelReport = "3. Tìm kiếm và báo cáo toàn bộ kênh (User Channel)";
     public const string ScenarioShortsReport = "4. Mở video ngắn Shorts, xem tự nhiên và báo cáo";
     public const string ScenarioCommentReport = "5. Tìm và báo cáo bình luận vi phạm trong video";
+    public const string ScenarioLiveStreamReport = "6. Báo cáo Livestream lừa đảo tài chính / crypto";
 
     /// <summary>
     /// Kịch bản 1: Mở app YouTube -> Gõ tìm kiếm -> Cuộn thông minh -> Xử lý quảng cáo -> Xem tự nhiên -> Nhấn Report -> Điền lý do -> Xác nhận.
@@ -385,6 +387,104 @@ public static class ScenarioDefinitions
                 target.LastReportedAt = DateTime.UtcNow;
                 return ReportStepResult.Success("Xác thực kết quả", "Báo cáo bình luận thành công.", proofShot);
             }, TimeSpan.FromSeconds(30))
+        };
+    }
+
+    /// <summary>
+    /// Kịch bản 6: Báo cáo Livestream lừa đảo tài chính và tiền ảo (Crypto/Financial Scam).
+    /// Tự động đóng Live Chat overlay, mở menu cài đặt/player controls, chọn danh mục Gian lận/Lừa đảo và nộp báo cáo.
+    /// </summary>
+    public static IReadOnlyList<IWorkflowStep> CreateLiveStreamFinancialScamScenario(
+        ReportTargetItem target,
+        ReportScenarioConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(target);
+        config ??= ReportScenarioConfig.CreateLiveStreamFinancialScamConfig();
+
+        return new IWorkflowStep[]
+        {
+            new DelegateWorkflowStep("1. Khởi động app & chuẩn bị môi trường", async (driver, ctx, ct) =>
+            {
+                ctx.CurrentTarget = target;
+                ctx.CurrentScenario = config;
+                ctx.CurrentReason = config.GetNextReason();
+
+                await driver.InitializeAsync(ct).ConfigureAwait(false);
+                await driver.EnsureAppReadyAsync(ct).ConfigureAwait(false);
+                await driver.NavigateHomeAsync(ct).ConfigureAwait(false);
+
+                string shot = await driver.CaptureScreenshotAsync("01_LiveReady", ct).ConfigureAwait(false);
+                return ReportStepResult.Success("Khởi động app", "Trang chủ YouTube đã mở và sẵn sàng.", shot);
+            }, TimeSpan.FromSeconds(60)),
+
+            new DelegateWorkflowStep("2. Điều hướng vào Livestream", async (driver, ctx, ct) =>
+            {
+                if (!string.IsNullOrWhiteSpace(target.TargetUrl))
+                {
+                    await driver.OpenVideoByUrlAsync(target.TargetUrl, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    string searchKeyword = !string.IsNullOrWhiteSpace(target.Keyword)
+                        ? target.Keyword
+                        : target.VideoTitle ?? "crypto live stream";
+
+                    await driver.SearchAsync(searchKeyword, ct).ConfigureAwait(false);
+                    bool found = await driver.SmartScrollAndSelectVideoAsync(target, ct).ConfigureAwait(false);
+                    if (!found)
+                    {
+                        return ReportStepResult.Failure("Tìm kiếm livestream", $"Không tìm thấy livestream phù hợp với từ khóa '{searchKeyword}'.");
+                    }
+                }
+
+                await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
+                string shot = await driver.CaptureScreenshotAsync("02_LiveStreamOpened", ct).ConfigureAwait(false);
+                return ReportStepResult.Success("Vào livestream", "Đã mở luồng phát trực tiếp thành công.", shot);
+            }, TimeSpan.FromSeconds(90)),
+
+            new DelegateWorkflowStep("3. Xem tự nhiên & tương tác Live Chat", async (driver, ctx, ct) =>
+            {
+                int duration = Random.Shared.Next(config.MinWatchDurationSeconds, Math.Max(config.MinWatchDurationSeconds + 1, config.MaxWatchDurationSeconds));
+                var options = new NaturalEngagementOptions
+                {
+                    EnableLiveChatScroll = true,
+                    EnableCommentReadingScroll = true,
+                    MinActions = 1,
+                    MaxActions = 2
+                };
+
+                await driver.WatchVideoWithNaturalEngagementAsync(TimeSpan.FromSeconds(duration), options, ct).ConfigureAwait(false);
+                string shot = await driver.CaptureScreenshotAsync("03_WatchedLive", ct).ConfigureAwait(false);
+                return ReportStepResult.Success("Xem tự nhiên", $"Đã xem livestream {duration}s và mô phỏng đọc chat.", shot);
+            }, TimeSpan.FromSeconds(120)),
+
+            new DelegateWorkflowStep("4. Đóng Live Chat, mở menu & nộp báo cáo lừa đảo", async (driver, ctx, ct) =>
+            {
+                var reason = ctx.CurrentReason ?? new ReportReasonConfig(ReportReasonCategory.FinancialOrCryptoScam, "Phát tán mô hình lừa đảo tài chính và tiền ảo giả mạo.");
+                bool submitted = await driver.SubmitLiveStreamReportAsync(reason, ct).ConfigureAwait(false);
+
+                if (!submitted)
+                {
+                    return ReportStepResult.Failure("Báo cáo livestream", "Không thể hoàn thành quy trình nộp báo cáo vi phạm livestream.");
+                }
+
+                string shot = await driver.CaptureScreenshotAsync("04_LiveReportSubmitted", ct).ConfigureAwait(false);
+                return ReportStepResult.Success("Báo cáo vi phạm", $"Đã gửi báo cáo livestream vi phạm: [{reason.Category}] - {reason.CustomDetails}", shot);
+            }, TimeSpan.FromSeconds(90)),
+
+            new DelegateWorkflowStep("5. Xác thực phản hồi từ YouTube", async (driver, ctx, ct) =>
+            {
+                bool confirmed = await driver.VerifyReportSubmittedAsync(ct).ConfigureAwait(false);
+                string shot = await driver.CaptureScreenshotAsync("05_LiveConfirmed", ct).ConfigureAwait(false);
+
+                if (confirmed)
+                {
+                    target.ReportsCompleted++;
+                    return ReportStepResult.Success("Xác nhận thành công", "YouTube đã xác nhận tiếp nhận báo cáo livestream vi phạm.", shot);
+                }
+
+                return ReportStepResult.Success("Hoàn thành báo cáo", "Đã gửi báo cáo (chờ YouTube duyệt tiếp nhận).", shot);
+            }, TimeSpan.FromSeconds(45))
         };
     }
 }

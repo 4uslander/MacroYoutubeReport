@@ -91,6 +91,12 @@ public class WorkflowEngineAndScenariosTests
             return Task.FromResult(true);
         }
 
+        public Task<bool> SubmitLiveStreamReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default)
+        {
+            ActionLogs.Add($"SubmitLiveStreamReport:{reasonConfig.Category}");
+            return Task.FromResult(true);
+        }
+
         public Task<bool> SubmitCommentReportAsync(string commentAuthorOrKeyword, ReportReasonConfig reasonConfig, CancellationToken ct = default)
         {
             ActionLogs.Add($"SubmitCommentReport:{commentAuthorOrKeyword}:{reasonConfig.Category}");
@@ -216,5 +222,31 @@ public class WorkflowEngineAndScenariosTests
         Assert.Equal(2, results.Count);
         Assert.True(results[0].IsSuccess);
         Assert.False(results[1].IsSuccess);
+    }
+
+    [Fact]
+    public async Task LiveStreamFinancialScamScenario_ExecutesExpectedSteps()
+    {
+        var driver = new MockYouTubeReportDriver();
+        var target = new ReportTargetItem("Crypto Live", "Scam Channel", "Free Bitcoin Giveaway 100x")
+        {
+            TargetType = ReportTargetType.LiveStream,
+            TargetUrl = "https://youtube.com/live/fakecrypto123"
+        };
+
+        var config = ReportScenarioConfig.CreateLiveStreamFinancialScamConfig();
+        config.RotateReasons = false; // Luôn chọn lý do đầu tiên là FinancialOrCryptoScam
+        config.MinWatchDurationSeconds = 1;
+        config.MaxWatchDurationSeconds = 2;
+
+        var steps = ScenarioDefinitions.CreateLiveStreamFinancialScamScenario(target, config);
+        Assert.Equal(5, steps.Count);
+
+        var engine = new WorkflowEngine();
+        var results = await engine.ExecuteScenarioAsync(driver, steps, new WorkflowContext());
+
+        Assert.Equal(5, results.Count);
+        Assert.All(results, r => Assert.True(r.IsSuccess));
+        Assert.Contains(driver.ActionLogs, a => a.Contains("SubmitLiveStreamReport:FinancialOrCryptoScam"));
     }
 }

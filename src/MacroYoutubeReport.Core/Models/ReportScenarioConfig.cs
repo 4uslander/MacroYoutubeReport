@@ -135,4 +135,29 @@ public sealed class ReportScenarioConfig
             new ReportReasonConfig(ReportReasonCategory.SpamOrMisleading, "Kênh hoạt động theo mạng lưới spam có tổ chức.")
         }
     };
+
+    /// <summary>
+    /// Tạo cấu hình chuyên sâu cho luồng báo cáo Livestream lừa đảo tài chính và tiền ảo (Crypto/Financial Scam).
+    /// </summary>
+    public static ReportScenarioConfig CreateLiveStreamFinancialScamConfig() => new()
+    {
+        ScenarioName = "6. Báo cáo Livestream lừa đảo tài chính / crypto",
+        MinWatchDurationSeconds = 20,
+        MaxWatchDurationSeconds = 45,
+        EnableNaturalEngagement = true,
+        RotateReasons = true,
+        ReasonPool = new()
+        {
+            new ReportReasonConfig(ReportReasonCategory.FinancialOrCryptoScam, "Livestream phát tán mô hình lừa đảo tài chính và tiền ảo giả mạo."),
+            new ReportReasonConfig(ReportReasonCategory.SpamOrMisleading, "Gian lận tài chính, chiêu trò tặng coin nhân đôi và bot spam link độc hại.")
+        },
+        DetailTextTemplates = new()
+        {
+            "Livestream này đang phát sóng mô hình lừa đảo tài chính và tiền mã hóa (crypto giveaway scam, doubling crypto), dụ dỗ người xem chuyển tiền vào ví giả mạo.",
+            "Video phát trực tiếp dụ dỗ người xem tham gia sàn giao dịch tài chính nhị phân/đa cấp bất hợp pháp, cam kết lợi nhuận bất thường và chiếm đoạt tiền gửi.",
+            "Dấu hiệu lừa đảo tài chính nghiêm trọng: live chat được bot spam link độc hại đánh cắp khóa ví tiền ảo và tài khoản ngân hàng.",
+            "This live stream promotes a fraudulent cryptocurrency/financial scam (fake giveaways, phishing QR code). Please terminate it under the Financial Scams policy.",
+            "이 실시간 스트리밍은 가상자산 사기 및 허위 에어드롭 이벤트를 홍보하여 사용자의 자산을 탈취하고 있습니다."
+        }
+    };
 }

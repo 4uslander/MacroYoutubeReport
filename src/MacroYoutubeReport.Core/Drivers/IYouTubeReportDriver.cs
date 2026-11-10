@@ -87,6 +87,11 @@ public interface IYouTubeReportDriver : IAsyncDisposable
     Task<bool> SubmitShortsReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default);
 
     /// <summary>
+    /// Thực hiện quy trình gửi Báo cáo luồng phát trực tiếp (Live Stream), bao gồm xử lý đóng Live Chat overlay che khuất thanh công cụ.
+    /// </summary>
+    Task<bool> SubmitLiveStreamReportAsync(ReportReasonConfig reasonConfig, CancellationToken ct = default);
+
+    /// <summary>
     /// Thực hiện quy trình tìm và gửi Báo cáo một bình luận vi phạm cụ thể.
     /// </summary>
     Task<bool> SubmitCommentReportAsync(string commentAuthorOrKeyword, ReportReasonConfig reasonConfig, CancellationToken ct = default);

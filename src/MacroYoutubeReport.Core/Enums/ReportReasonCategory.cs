@@ -59,5 +59,10 @@ public enum ReportReasonCategory
     /// <summary>
     /// Vấn đề về phụ đề (Captions issue)
     /// </summary>
-    CaptionsIssue = 11
+    CaptionsIssue = 11,
+
+    /// <summary>
+    /// Gian lận hoặc lừa đảo tài chính, tiền ảo (Financial/Crypto Scams & Fraud)
+    /// </summary>
+    FinancialOrCryptoScam = 12
 }

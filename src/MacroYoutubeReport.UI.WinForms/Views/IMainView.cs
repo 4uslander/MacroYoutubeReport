@@ -22,6 +22,10 @@ public interface IMainView
     void AddTargetItem(ReportTargetItem target);
     void RemoveSelectedTarget();
     void ClearAllTargets();
+    void RefreshTasksDisplay();
+
+    // Danh sách thiết bị được chọn
+    IReadOnlyList<string> GetSelectedDeviceSerials();
 
     ReportScenarioConfig GetScenarioConfig();
     void SetScenarioConfig(ReportScenarioConfig config);
@@ -30,6 +34,7 @@ public interface IMainView
     event Func<Task>? ViewLoaded;
     event Func<Task>? ScanDevicesRequested;
     event Func<Task>? StartBatchRequested;
+    event Func<ReportTargetItem, Task>? StartSingleTargetRequested;
     event Action? StopBatchRequested;
     event Func<Task>? RefreshHistoryRequested;
     event Action<string>? ExportHistoryCsvRequested;
@@ -38,6 +43,7 @@ public interface IMainView
 
     // Cập nhật giao diện từ Presenter
     void SetDevices(IReadOnlyList<ManagedAndroidDevice> devices);
+    void UpdateDeviceRunningStatus(string deviceSerial, string targetName, string status);
     void SetChromeProfiles(IReadOnlyList<string> profiles);
     void SetAccounts(IReadOnlyList<AccountProfile> accounts);
     void SetProxies(IReadOnlyList<ProxyConfig> proxies);

@@ -32,6 +32,7 @@ public partial class MainForm : Form, IMainView
     public event Func<Task>? ViewLoaded;
     public event Func<Task>? ScanDevicesRequested;
     public event Func<Task>? StartBatchRequested;
+    public event Func<ReportTargetItem, Task>? StartSingleTargetRequested;
     public event Action? StopBatchRequested;
     public event Func<Task>? RefreshHistoryRequested;
     public event Action<string>? ExportHistoryCsvRequested;
@@ -250,15 +251,27 @@ public partial class MainForm : Form, IMainView
 
             if (colName == "COL_ACTION_START")
             {
-                AppendLog($"[Tác vụ #{e.RowIndex + 1}] Bắt đầu thực thi: {target.VideoTitle ?? target.Keyword}", "INFO");
-                if (StartBatchRequested != null) await StartBatchRequested.Invoke();
+                if (StartSingleTargetRequested != null)
+                {
+                    await StartSingleTargetRequested.Invoke(target);
+                }
+                else if (StartBatchRequested != null)
+                {
+                    await StartBatchRequested.Invoke();
+                }
             }
             else if (colName == "COL_ACTION_RESTART")
             {
                 target.ReportsCompleted = 0;
                 RefreshTargetsGrid();
-                AppendLog($"[Tác vụ #{e.RowIndex + 1}] Đã khởi động lại mục tiêu: {target.VideoTitle ?? target.Keyword}", "INFO");
-                if (StartBatchRequested != null) await StartBatchRequested.Invoke();
+                if (StartSingleTargetRequested != null)
+                {
+                    await StartSingleTargetRequested.Invoke(target);
+                }
+                else if (StartBatchRequested != null)
+                {
+                    await StartBatchRequested.Invoke();
+                }
             }
             else if (colName == "COL_ACTION_STOP")
             {
@@ -269,7 +282,10 @@ public partial class MainForm : Form, IMainView
             {
                 lock (_targets)
                 {
-                    _targets.RemoveAt(e.RowIndex);
+                    if (e.RowIndex < _targets.Count)
+                    {
+                        _targets.RemoveAt(e.RowIndex);
+                    }
                 }
                 RefreshTargetsGrid();
                 AppendLog($"Đã xóa mục tiêu tại dòng #{e.RowIndex + 1}", "INFO");
@@ -277,6 +293,22 @@ public partial class MainForm : Form, IMainView
         };
 
         // 7. Click Checkbox on Devices Grid (Bật/tắt chọn thiết bị)
+        this.dgvDevices.CurrentCellDirtyStateChanged += (s, e) =>
+        {
+            if (dgvDevices.IsCurrentCellDirty && dgvDevices.CurrentCell is DataGridViewCheckBoxCell)
+            {
+                dgvDevices.CommitEdit(DataGridViewDataErrorContexts.Commit);
+            }
+        };
+
+        this.dgvDevices.CellValueChanged += (s, e) =>
+        {
+            if (e.RowIndex >= 0 && dgvDevices.Columns[e.ColumnIndex].Name == "DEV_SEL")
+            {
+                UpdateSelectedDevicesRatio();
+            }
+        };
+
         this.dgvDevices.CellContentClick += (s, e) =>
         {
             if (e.RowIndex >= 0 && dgvDevices.Columns[e.ColumnIndex].Name == "DEV_SEL")
@@ -740,6 +772,87 @@ public partial class MainForm : Form, IMainView
         chkRotateReasons.Checked = config.RotateReasons;
     }
 
+    public IReadOnlyList<string> GetSelectedDeviceSerials()
+    {
+        var list = new List<string>();
+        foreach (DataGridViewRow row in dgvDevices.Rows)
+        {
+            bool isChecked = Convert.ToBoolean(row.Cells["DEV_SEL"].Value ?? false);
+            if (isChecked)
+            {
+                string? serial = row.Cells["DEV_SERIAL"].Value?.ToString();
+                if (!string.IsNullOrWhiteSpace(serial))
+                {
+                    list.Add(serial.Trim());
+                }
+            }
+        }
+
+        // Tự động fallback lấy tất cả thiết bị online nếu chưa chọn ô nào
+        if (list.Count == 0 && dgvDevices.Rows.Count > 0)
+        {
+            foreach (DataGridViewRow row in dgvDevices.Rows)
+            {
+                string? serial = row.Cells["DEV_SERIAL"].Value?.ToString();
+                string? status = row.Cells["DEV_STATUS"].Value?.ToString();
+                if (!string.IsNullOrWhiteSpace(serial) && (status == "Online" || string.IsNullOrWhiteSpace(status)))
+                {
+                    list.Add(serial.Trim());
+                    row.Cells["DEV_SEL"].Value = true;
+                }
+            }
+            UpdateSelectedDevicesRatio();
+        }
+
+        return list;
+    }
+
+    public void RefreshTasksDisplay()
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(RefreshTasksDisplay);
+            return;
+        }
+        RefreshTargetsGrid();
+    }
+
+    public void UpdateDeviceRunningStatus(string deviceSerial, string targetName, string status)
+    {
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => UpdateDeviceRunningStatus(deviceSerial, targetName, status));
+            return;
+        }
+
+        foreach (DataGridViewRow row in dgvDevices.Rows)
+        {
+            string? serial = row.Cells["DEV_SERIAL"].Value?.ToString();
+            if (string.Equals(serial, deviceSerial, StringComparison.OrdinalIgnoreCase))
+            {
+                row.Cells["DEV_TARGET"].Value = targetName;
+                row.Cells["DEV_STATUS"].Value = status;
+                if (status == "Đang chạy")
+                {
+                    row.Cells["DEV_STATUS"].Style.ForeColor = Color.DarkOrange;
+                }
+                else if (status == "Hoàn thành")
+                {
+                    row.Cells["DEV_STATUS"].Style.ForeColor = Color.DarkGreen;
+                }
+                else if (status == "Thất bại")
+                {
+                    row.Cells["DEV_STATUS"].Style.ForeColor = Color.Red;
+                }
+                else
+                {
+                    row.Cells["DEV_STATUS"].Style.ForeColor = Color.Black;
+                }
+                break;
+            }
+        }
+    }
+
     public void SetDevices(IReadOnlyList<ManagedAndroidDevice> devices)
     {
         if (InvokeRequired)
@@ -752,10 +865,11 @@ public partial class MainForm : Form, IMainView
         int stt = 1;
         foreach (var dev in devices)
         {
+            string ip = dev.Serial.Contains(':') ? dev.Serial.Split(':')[0] : "Direct";
             dgvDevices.Rows.Add(
-                true, // Default selected (checked)
+                true, // Mặc định tích chọn tất cả thiết bị
                 stt++,
-                "127.0.0.1",
+                ip,
                 dev.Serial,
                 dev.Model,
                 "Chưa gán",

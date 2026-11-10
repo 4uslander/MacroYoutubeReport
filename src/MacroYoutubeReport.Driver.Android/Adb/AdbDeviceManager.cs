@@ -71,6 +71,12 @@ public sealed class AdbDeviceManager
     public async Task<ManagedAndroidDevice?> GetDeviceBySerialAsync(string serial, CancellationToken ct = default)
     {
         var devices = await ScanDevicesAsync(ct).ConfigureAwait(false);
-        return devices.FirstOrDefault(d => string.Equals(d.Serial, serial, StringComparison.OrdinalIgnoreCase));
+        var match = devices.FirstOrDefault(d => string.Equals(d.Serial, serial, StringComparison.OrdinalIgnoreCase));
+        if (match != null) return match;
+
+        // Fallback: tìm theo chuỗi con (IP hoặc cổng) nếu serial có định dạng linh hoạt
+        return devices.FirstOrDefault(d => d.Serial.EndsWith(serial, StringComparison.OrdinalIgnoreCase)
+                                        || serial.EndsWith(d.Serial, StringComparison.OrdinalIgnoreCase)
+                                        || d.Serial.Contains(serial, StringComparison.OrdinalIgnoreCase));
     }
 }

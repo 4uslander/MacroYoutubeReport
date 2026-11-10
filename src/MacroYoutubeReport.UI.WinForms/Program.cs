@@ -19,7 +19,7 @@ internal static class Program
         var proxyRotator = new ProxyRotator();
         var driverFactory = new DefaultDriverFactory();
 
-        var engine = new ReportSchedulerEngine(journal, accountManager, proxyRotator, driverFactory, maxConcurrency: 4);
+        var engine = new ReportSchedulerEngine(journal, accountManager, proxyRotator, driverFactory, maxConcurrency: 16);
 
         var mainForm = new MainForm();
         var presenter = new MainPresenter(mainForm, engine, journal, accountManager, proxyRotator);

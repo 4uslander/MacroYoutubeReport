@@ -44,6 +44,7 @@ public sealed class MainPresenter
         _view.ViewLoaded += OnViewLoadedAsync;
         _view.ScanDevicesRequested += OnScanDevicesRequestedAsync;
         _view.StartBatchRequested += OnStartBatchRequestedAsync;
+        _view.StartSingleTargetRequested += OnStartSingleTargetRequestedAsync;
         _view.StopBatchRequested += OnStopBatchRequested;
         _view.RefreshHistoryRequested += OnRefreshHistoryRequestedAsync;
         _view.ExportHistoryCsvRequested += OnExportHistoryCsvRequested;
@@ -57,14 +58,16 @@ public sealed class MainPresenter
 
         _engine.OnTaskStarted += (req, deviceId) =>
         {
-            _view.AppendLog($"Bắt đầu xử lý: [{deviceId}] -> {req.Target.VideoTitle ?? req.Target.Keyword}", "INFO");
+            string targetName = req.Target.VideoTitle ?? req.Target.Keyword;
+            _view.AppendLog($"Bắt đầu xử lý: [{deviceId}] -> {targetName}", "INFO");
+            _view.UpdateDeviceRunningStatus(deviceId, targetName, "Đang chạy");
             UpdateStatusCounters();
         };
 
         _engine.OnStepProgress += (req, step) =>
         {
             string level = step.IsSuccess ? "INFO" : "WARN";
-            _view.AppendLog($"[{step.StepName}] {step.Message}", level);
+            _view.AppendLog($"[{req.AssignedDeviceIdOrProfile}] [{step.StepName}] {step.Message}", level);
         };
 
         _engine.OnTaskCompleted += record =>
@@ -72,14 +75,16 @@ public sealed class MainPresenter
             if (record.Status == ExecutionStatus.Succeeded)
             {
                 Interlocked.Increment(ref _completedCount);
-                _view.AppendLog($"Thành công: Đã báo cáo mục tiêu [{record.TargetNameOrUrl}]!", "SUCCESS");
+                _view.AppendLog($"Thành công: Đã báo cáo mục tiêu [{record.TargetNameOrUrl}] trên [{record.DeviceSerialOrProfile}]!", "SUCCESS");
             }
             else
             {
                 Interlocked.Increment(ref _failedCount);
-                _view.AppendLog($"Thất bại: [{record.TargetNameOrUrl}] - Lỗi: {record.ErrorMessage}", "ERROR");
+                _view.AppendLog($"Thất bại: [{record.TargetNameOrUrl}] trên [{record.DeviceSerialOrProfile}] - Lỗi: {record.ErrorMessage}", "ERROR");
             }
 
+            _view.UpdateDeviceRunningStatus(record.DeviceSerialOrProfile, "Đang rảnh", record.Status == ExecutionStatus.Succeeded ? "Hoàn thành" : "Thất bại");
+            _view.RefreshTasksDisplay();
             UpdateStatusCounters();
             _ = RefreshHistoryDataAsync();
         };
@@ -166,15 +171,44 @@ public sealed class MainPresenter
 
         var config = _view.GetScenarioConfig();
         var platform = _view.SelectedPlatform;
+        var selectedDevices = _view.GetSelectedDeviceSerials();
+
+        if (platform == PlatformType.Android && selectedDevices.Count == 0)
+        {
+            _view.ShowNotification("Vui lòng tích chọn ít nhất một thiết bị Android để thực thi.", isError: true);
+            return;
+        }
 
         _completedCount = 0;
         _failedCount = 0;
 
         _view.SetRunningState(true);
-        _view.AppendLog($"Bắt đầu thực thi hàng loạt {targets.Count} mục tiêu trên nền tảng {platform}...", "INFO");
+        _view.AppendLog($"Bắt đầu thực thi hàng loạt {targets.Count} mục tiêu trên {(selectedDevices.Count > 0 ? selectedDevices.Count + " thiết bị" : platform.ToString())}...", "INFO");
 
-        int queued = _engine.EnqueueBatch(targets, config, platform);
-        _view.AppendLog($"Đã xếp {queued} mục tiêu vào hàng đợi.", "INFO");
+        int queued = _engine.EnqueueBatchWithDevices(targets, selectedDevices, config, platform);
+        _view.AppendLog($"Đã xếp {queued} tác vụ vào hàng đợi cho các thiết bị đã chọn.", "INFO");
+    }
+
+    private async Task OnStartSingleTargetRequestedAsync(ReportTargetItem target)
+    {
+        if (target == null) return;
+
+        var config = _view.GetScenarioConfig();
+        var platform = _view.SelectedPlatform;
+        var selectedDevices = _view.GetSelectedDeviceSerials();
+
+        if (platform == PlatformType.Android && selectedDevices.Count == 0)
+        {
+            _view.ShowNotification("Vui lòng tích chọn ít nhất một thiết bị Android để thực thi mục tiêu này.", isError: true);
+            return;
+        }
+
+        _view.SetRunningState(true);
+        string targetTitle = target.VideoTitle ?? target.Keyword;
+        _view.AppendLog($"Bắt đầu mục tiêu [{targetTitle}] trên {(selectedDevices.Count > 0 ? selectedDevices.Count + " thiết bị" : platform.ToString())}...", "INFO");
+
+        int queued = _engine.EnqueueBatchWithDevices(new[] { target }, selectedDevices, config, platform);
+        _view.AppendLog($"Đã xếp {queued} tác vụ vào hàng đợi.", "INFO");
     }
 
     private void OnStopBatchRequested()

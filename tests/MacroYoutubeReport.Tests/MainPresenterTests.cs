@@ -40,6 +40,7 @@ public class MainPresenterTests
 #pragma warning disable CS0067
         public event Func<Task>? ScanDevicesRequested;
         public event Func<Task>? StartBatchRequested;
+        public event Func<ReportTargetItem, Task>? StartSingleTargetRequested;
         public event Action? StopBatchRequested;
         public event Func<Task>? RefreshHistoryRequested;
         public event Action<string>? ExportHistoryCsvRequested;
@@ -56,11 +57,16 @@ public class MainPresenterTests
         public void AddTargetItem(ReportTargetItem target) => Targets.Add(target);
         public void RemoveSelectedTarget() { if (Targets.Count > 0) Targets.RemoveAt(0); }
         public void ClearAllTargets() => Targets.Clear();
+        public void RefreshTasksDisplay() { }
+
+        public List<string> SelectedDevices { get; } = new() { "mock-device-01" };
+        public IReadOnlyList<string> GetSelectedDeviceSerials() => SelectedDevices;
 
         public ReportScenarioConfig GetScenarioConfig() => ScenarioConfig;
         public void SetScenarioConfig(ReportScenarioConfig config) => ScenarioConfig = config;
 
         public void SetDevices(IReadOnlyList<ManagedAndroidDevice> devices) { }
+        public void UpdateDeviceRunningStatus(string deviceSerial, string targetName, string status) { }
         public void SetChromeProfiles(IReadOnlyList<string> profiles) { }
         public void SetAccounts(IReadOnlyList<AccountProfile> accounts) { }
         public void SetProxies(IReadOnlyList<ProxyConfig> proxies) { }
@@ -107,7 +113,7 @@ public class MainPresenterTests
             await view.TriggerStartBatchAsync();
 
             Assert.True(view.IsRunning);
-            Assert.Contains(view.Logs, l => l.Contains("Đã xếp 1 mục tiêu vào hàng đợi"));
+            Assert.Contains(view.Logs, l => l.Contains("Đã xếp 1 tác vụ vào hàng đợi"));
 
             view.TriggerStopBatch();
             Assert.False(view.IsRunning);

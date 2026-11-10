@@ -4,6 +4,7 @@ using MacroYoutubeReport.Core.Drivers;
 using MacroYoutubeReport.Core.Enums;
 using MacroYoutubeReport.Core.Models;
 using MacroYoutubeReport.Core.Workflows;
+using MacroYoutubeReport.Driver.Android.Adb;
 using MacroYoutubeReport.Scheduler.Accounts;
 using MacroYoutubeReport.Scheduler.Journal;
 using MacroYoutubeReport.Scheduler.Proxy;
@@ -140,6 +141,39 @@ public sealed class ReportSchedulerEngine : IAsyncDisposable
         return count;
     }
 
+    /// <summary>
+    /// Xếp lịch chạy hàng loạt mục tiêu cho danh sách các thiết bị/profile cụ thể.
+    /// Mỗi thiết bị sẽ độc lập nhận và thực thi mục tiêu.
+    /// </summary>
+    public int EnqueueBatchWithDevices(
+        IEnumerable<ReportTargetItem> targets,
+        IReadOnlyList<string> deviceIds,
+        ReportScenarioConfig? config = null,
+        PlatformType platform = PlatformType.Android)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        if (deviceIds == null || deviceIds.Count == 0)
+        {
+            return EnqueueBatch(targets, config, platform);
+        }
+
+        int count = 0;
+        foreach (var t in targets)
+        {
+            foreach (var devId in deviceIds)
+            {
+                if (string.IsNullOrWhiteSpace(devId)) continue;
+                var req = new ReportTaskRequest(t, config)
+                {
+                    PreferredPlatform = platform,
+                    AssignedDeviceIdOrProfile = devId.Trim()
+                };
+                if (EnqueueTask(req)) count++;
+            }
+        }
+        return count;
+    }
+
     private async Task DispatcherLoopAsync(CancellationToken ct)
     {
         while (!ct.IsCancellationRequested)
@@ -180,7 +214,20 @@ public sealed class ReportSchedulerEngine : IAsyncDisposable
         _runningTasks[request.TaskId] = request;
         NotifyQueueStatusChanged();
 
-        string deviceId = request.AssignedDeviceIdOrProfile ?? "DefaultDevice";
+        string deviceId = request.AssignedDeviceIdOrProfile ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(deviceId))
+        {
+            if (request.PreferredPlatform == PlatformType.Android)
+            {
+                var devs = await AdbDeviceManager.Instance.ScanDevicesAsync(ct).ConfigureAwait(false);
+                var freeDev = devs.FirstOrDefault(d => d.Status == DeviceStatus.Online && !_activeDeviceLocks.ContainsKey(d.Serial));
+                deviceId = freeDev?.Serial ?? devs.FirstOrDefault(d => d.Status == DeviceStatus.Online)?.Serial ?? "DefaultDevice";
+            }
+            else
+            {
+                deviceId = "DefaultProfile";
+            }
+        }
 
         // Khóa thiết bị độc quyền
         while (!_activeDeviceLocks.TryAdd(deviceId, true))

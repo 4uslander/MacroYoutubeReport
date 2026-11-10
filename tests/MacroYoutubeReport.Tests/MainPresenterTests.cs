@@ -21,8 +21,18 @@ public class MainPresenterTests
         public List<ReportTargetItem> Targets { get; } = new();
         public ReportScenarioConfig ScenarioConfig { get; set; } = ReportScenarioConfig.CreateStandardSearchConfig();
 
-        public List<string> Logs { get; } = new();
-        public string? LastProofScreenshot { get; private set; }
+        private readonly object _logLock = new();
+        private readonly List<string> _logs = new();
+        public IReadOnlyList<string> Logs
+        {
+            get
+            {
+                lock (_logLock)
+                {
+                    return _logs.ToList();
+                }
+            }
+        }
         public (int Pending, int Running, int Completed, int Failed) LastCounters { get; private set; }
         public IReadOnlyList<ReportTaskRecord> HistoryRecords { get; private set; } = Array.Empty<ReportTaskRecord>();
 
@@ -61,8 +71,13 @@ public class MainPresenterTests
             LastCounters = (pendingCount, runningCount, completedCount, failedCount);
         }
 
-        public void AppendLog(string message, string level = "INFO") => Logs.Add($"[{level}] {message}");
-        public void DisplayProofScreenshot(string imagePath) => LastProofScreenshot = imagePath;
+        public void AppendLog(string message, string level = "INFO")
+        {
+            lock (_logLock)
+            {
+                _logs.Add($"[{level}] {message}");
+            }
+        }
         public void SetRunningState(bool isRunning) => IsRunning = isRunning;
         public void ShowNotification(string message, bool isError = false) { }
 

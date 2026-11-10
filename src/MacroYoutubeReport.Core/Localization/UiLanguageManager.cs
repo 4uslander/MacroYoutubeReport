@@ -8,6 +8,8 @@ namespace MacroYoutubeReport.Core.Localization;
 /// </summary>
 public static class UiLanguageManager
 {
+    public static AppLanguage CurrentLanguage { get; set; } = AppLanguage.Vietnamese;
+
     private static readonly Dictionary<ReportReasonCategory, Dictionary<AppLanguage, string[]>> CategoryKeywords = new()
     {
         [ReportReasonCategory.SpamOrMisleading] = new()

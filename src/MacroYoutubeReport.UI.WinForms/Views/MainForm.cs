@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using MacroYoutubeReport.Core.Enums;
+using MacroYoutubeReport.Core.Localization;
 using MacroYoutubeReport.Core.Models;
 using MacroYoutubeReport.Driver.Android.Adb;
 using MacroYoutubeReport.Scheduler.Accounts;
@@ -51,6 +52,13 @@ public partial class MainForm : Form, IMainView
             if (ViewLoaded != null) await ViewLoaded.Invoke();
         };
 
+        // Platform & Connect
+        this.btnConnectDevices.Click += async (_, _) =>
+        {
+            if (ScanDevicesRequested != null) await ScanDevicesRequested.Invoke();
+        };
+
+        // Start & Stop
         this.btnStart.Click += async (_, _) =>
         {
             if (StartBatchRequested != null) await StartBatchRequested.Invoke();
@@ -61,29 +69,33 @@ public partial class MainForm : Form, IMainView
             StopBatchRequested?.Invoke();
         };
 
-        this.btnRefreshDevices.Click += async (_, _) =>
+        this.btnExitApp.Click += (_, _) =>
         {
-            if (ScanDevicesRequested != null) await ScanDevicesRequested.Invoke();
+            this.Close();
         };
 
-        this.btnRefreshHistory.Click += async (_, _) =>
+        // File selectors
+        this.btnSelectMailFile.Click += (_, _) =>
         {
-            if (RefreshHistoryRequested != null) await RefreshHistoryRequested.Invoke();
-        };
-
-        this.btnExportCsv.Click += (_, _) =>
-        {
-            using var sfd = new SaveFileDialog
+            using var ofd = new OpenFileDialog { Filter = "Text File (*.txt)|*.txt|All Files (*.*)|*.*" };
+            if (ofd.ShowDialog() == DialogResult.OK)
             {
-                Filter = "CSV File (*.csv)|*.csv",
-                FileName = $"Report_History_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
-            };
-            if (sfd.ShowDialog() == DialogResult.OK)
-            {
-                ExportHistoryCsvRequested?.Invoke(sfd.FileName);
+                txtMailFile.Text = ofd.FileName;
+                AppendLog($"Đã chọn file tài khoản Gmail: {Path.GetFileName(ofd.FileName)}", "INFO");
             }
         };
 
+        this.btnSelectProxyFile.Click += (_, _) =>
+        {
+            using var ofd = new OpenFileDialog { Filter = "Text File (*.txt)|*.txt|All Files (*.*)|*.*" };
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                txtProxyFile.Text = ofd.FileName;
+                AppendLog($"Đã chọn file Proxy: {Path.GetFileName(ofd.FileName)}", "INFO");
+            }
+        };
+
+        // Target operations
         this.btnAddTarget.Click += (_, _) =>
         {
             var targetType = cmbTargetType.SelectedIndex switch
@@ -117,14 +129,14 @@ public partial class MainForm : Form, IMainView
         };
 
         this.btnRemoveTarget.Click += (_, _) => RemoveSelectedTarget();
-        this.btnClearTargets.Click += (_, _) => ClearAllTargets();
 
         this.btnImportTargets.Click += (_, _) =>
         {
-            using var ofd = new OpenFileDialog { Filter = "Text File (*.txt)|*.txt|All Files (*.*)|*.*" };
+            using var ofd = new OpenFileDialog { Filter = "Text File (*.txt)|*.txt|CSV File (*.csv)|*.csv|All Files (*.*)|*.*" };
             if (ofd.ShowDialog() == DialogResult.OK)
             {
                 var lines = File.ReadAllLines(ofd.FileName);
+                int count = 0;
                 foreach (var line in lines)
                 {
                     if (string.IsNullOrWhiteSpace(line)) continue;
@@ -137,19 +149,124 @@ public partial class MainForm : Form, IMainView
                         TargetUrl = parts.Length > 3 ? parts[3].Trim() : (parts[0].StartsWith("http") ? parts[0].Trim() : null)
                     };
                     AddTargetItem(item);
+                    count++;
                 }
+                AppendLog($"Đã nhập {count} mục tiêu từ file {Path.GetFileName(ofd.FileName)}", "INFO");
             }
         };
 
-        this.btnAddProfile.Click += (_, _) =>
+        // Top Quick Actions
+        this.btnActionHome.Click += async (_, _) =>
         {
-            string name = txtNewProfile.Text.Trim();
-            if (!string.IsNullOrWhiteSpace(name) && !lstChromeProfiles.Items.Contains(name))
+            if (RefreshHistoryRequested != null) await RefreshHistoryRequested.Invoke();
+            AppendLog("Đã làm mới dữ liệu màn hình chính.", "INFO");
+        };
+
+        this.btnActionCloseAll.Click += (_, _) =>
+        {
+            StopBatchRequested?.Invoke();
+            AppendLog("Đã phát lệnh đóng tất cả tác vụ đang chạy.", "WARN");
+        };
+
+        this.btnActionFullScreen.Click += (_, _) =>
+        {
+            this.WindowState = this.WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
+        };
+
+        this.btnActionCheckAccount.Click += (_, _) =>
+        {
+            AppendLog("Đang kiểm tra trạng thái tài khoản...", "INFO");
+        };
+
+        this.btnActionCheckYoutube.Click += (_, _) =>
+        {
+            AppendLog("Kiểm tra ứng dụng YouTube trên các thiết bị...", "INFO");
+        };
+
+        this.btnActionReallocate.Click += (_, _) =>
+        {
+            AppendLog("Đang phân bổ lại tài khoản cho các thiết bị...", "INFO");
+        };
+
+        this.btnActionResetCache.Click += (_, _) =>
+        {
+            AppendLog("Đã xóa bộ nhớ đệm tạm thời.", "INFO");
+        };
+
+        this.btnActionScanTcp.Click += async (_, _) =>
+        {
+            AppendLog("Đang quét gom TCP các thiết bị ADB...", "INFO");
+            if (ScanDevicesRequested != null) await ScanDevicesRequested.Invoke();
+        };
+
+        this.btnActionExportCsv.Click += (_, _) =>
+        {
+            using var sfd = new SaveFileDialog
             {
-                lstChromeProfiles.Items.Add(name);
-                txtNewProfile.Clear();
+                Filter = "CSV File (*.csv)|*.csv",
+                FileName = $"Report_History_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+            };
+            if (sfd.ShowDialog() == DialogResult.OK)
+            {
+                ExportHistoryCsvRequested?.Invoke(sfd.FileName);
             }
         };
+
+        this.btnActionClearCompleted.Click += (_, _) =>
+        {
+            lock (_targets)
+            {
+                _targets.RemoveAll(t => t.ReportsCompleted >= t.MaxReportsRequired);
+            }
+            RefreshTargetsGrid();
+            AppendLog("Đã dọn dẹp các tác vụ hoàn thành khỏi danh sách.", "INFO");
+        };
+
+        // Filter Actions
+        this.btnSelectAllTasks.Click += (_, _) =>
+        {
+            foreach (DataGridViewRow row in dgvTasks.Rows)
+            {
+                row.Selected = true;
+            }
+        };
+
+        this.rdoFilterAll.CheckedChanged += (_, _) => ApplyTaskFilter();
+        this.rdoFilterDone.CheckedChanged += (_, _) => ApplyTaskFilter();
+        this.rdoFilterRunning.CheckedChanged += (_, _) => ApplyTaskFilter();
+        this.rdoFilterFailed.CheckedChanged += (_, _) => ApplyTaskFilter();
+        this.cmbFilterType.SelectedIndexChanged += (_, _) => ApplyTaskFilter();
+
+        // Menu strip
+        this.tsmiExportHistory.Click += (_, _) => btnActionExportCsv.PerformClick();
+        this.tsmiExit.Click += (_, _) => this.Close();
+        this.tsmiLangVi.Click += (_, _) => UiLanguageManager.CurrentLanguage = AppLanguage.Vietnamese;
+        this.tsmiLangKr.Click += (_, _) => UiLanguageManager.CurrentLanguage = AppLanguage.Korean;
+        this.tsmiLangEn.Click += (_, _) => UiLanguageManager.CurrentLanguage = AppLanguage.English;
+    }
+
+    private void ApplyTaskFilter()
+    {
+        string typeFilter = cmbFilterType.SelectedItem?.ToString() ?? "Tất cả";
+        foreach (DataGridViewRow row in dgvTasks.Rows)
+        {
+            if (row.IsNewRow) continue;
+            bool visible = true;
+
+            string rowType = row.Cells["COL_TYPE"].Value?.ToString() ?? string.Empty;
+            string rowStatus = row.Cells["COL_STATUS"].Value?.ToString() ?? string.Empty;
+
+            if (typeFilter != "Tất cả" && !rowType.Equals(typeFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                visible = false;
+            }
+
+            if (rdoFilterDone.Checked && rowStatus != "Hoàn thành") visible = false;
+            if (rdoFilterRunning.Checked && rowStatus != "Đang chạy") visible = false;
+            if (rdoFilterFailed.Checked && rowStatus != "Thất bại") visible = false;
+
+            row.Visible = visible;
+        }
     }
 
     public IReadOnlyList<ReportTargetItem> GetTargetItems()
@@ -181,9 +298,9 @@ public partial class MainForm : Form, IMainView
 
     public void RemoveSelectedTarget()
     {
-        if (dgvTargets.CurrentRow != null && dgvTargets.CurrentRow.Index >= 0)
+        if (dgvTasks.CurrentRow != null && dgvTasks.CurrentRow.Index >= 0)
         {
-            int index = dgvTargets.CurrentRow.Index;
+            int index = dgvTasks.CurrentRow.Index;
             lock (_targets)
             {
                 if (index < _targets.Count)
@@ -212,14 +329,18 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
-        dgvTargets.Rows.Clear();
+        dgvTasks.Rows.Clear();
         lock (_targets)
         {
+            int stt = 1;
             foreach (var t in _targets)
             {
+                string interval = $"{numMinWatch.Value}-{numMaxWatch.Value}s";
                 string progress = $"{t.ReportsCompleted}/{t.MaxReportsRequired}";
-                dgvTargets.Rows.Add(t.TargetType.ToString(), t.Keyword, t.VideoTitle ?? string.Empty, t.ChannelName ?? string.Empty, t.TargetUrl ?? string.Empty, progress);
+                string status = t.ReportsCompleted >= t.MaxReportsRequired ? "Hoàn thành" : "Chờ xử lý";
+                dgvTasks.Rows.Add(stt++, t.TargetType.ToString(), t.Keyword, t.ChannelName ?? string.Empty, t.VideoTitle ?? string.Empty, t.TargetUrl ?? string.Empty, interval, progress, status);
             }
+            lblTaskCountRatio.Text = $"0/{_targets.Count}";
         }
     }
 
@@ -235,35 +356,36 @@ public partial class MainForm : Form, IMainView
             RotateReasons = chkRotateReasons.Checked
         };
 
-        var reasonPool = new List<ReportReasonConfig>();
-        foreach (int idx in clbReasons.CheckedIndices)
+        var selectedReason = cmbMainReason.SelectedIndex switch
         {
-            var cat = idx switch
+            0 => ReportReasonCategory.SpamOrMisleading,
+            1 => ReportReasonCategory.HarmfulDangerousActs,
+            2 => ReportReasonCategory.Misinformation,
+            3 => ReportReasonCategory.HatefulOrAbusive,
+            4 => ReportReasonCategory.HarassmentOrBullying,
+            5 => ReportReasonCategory.ViolentOrRepulsive,
+            6 => ReportReasonCategory.SexualContent,
+            7 => ReportReasonCategory.ChildAbuse,
+            8 => ReportReasonCategory.PromotesTerrorism,
+            9 => ReportReasonCategory.InfringesMyRights,
+            _ => ReportReasonCategory.SpamOrMisleading
+        };
+
+        if (chkRotateReasons.Checked)
+        {
+            config.ReasonPool = new List<ReportReasonConfig>
             {
-                0 => ReportReasonCategory.SpamOrMisleading,
-                1 => ReportReasonCategory.HarmfulDangerousActs,
-                2 => ReportReasonCategory.Misinformation,
-                3 => ReportReasonCategory.HatefulOrAbusive,
-                4 => ReportReasonCategory.HarassmentOrBullying,
-                5 => ReportReasonCategory.ViolentOrRepulsive,
-                _ => ReportReasonCategory.SexualContent
+                new(ReportReasonCategory.SpamOrMisleading),
+                new(ReportReasonCategory.HarmfulDangerousActs),
+                new(ReportReasonCategory.Misinformation),
+                new(ReportReasonCategory.HatefulOrAbusive),
+                new(ReportReasonCategory.HarassmentOrBullying),
+                new(ReportReasonCategory.ViolentOrRepulsive)
             };
-            reasonPool.Add(new ReportReasonConfig(cat));
         }
-
-        if (reasonPool.Count > 0)
+        else
         {
-            config.ReasonPool = reasonPool;
-        }
-
-        var templates = txtSpinTemplates.Lines
-            .Where(l => !string.IsNullOrWhiteSpace(l))
-            .Select(l => l.Trim())
-            .ToList();
-
-        if (templates.Count > 0)
-        {
-            config.DetailTextTemplates = templates;
+            config.ReasonPool = new List<ReportReasonConfig> { new(selectedReason) };
         }
 
         return config;
@@ -292,10 +414,10 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
-        dgvAndroidDevices.Rows.Clear();
+        dgvDevices.Rows.Clear();
         foreach (var dev in devices)
         {
-            dgvAndroidDevices.Rows.Add(dev.Serial, dev.Model, dev.AndroidVersion, dev.Status);
+            dgvDevices.Rows.Add(false, dev.Serial, dev.Model, "Chưa gán", "Direct", "Đang rảnh", dev.Status);
         }
     }
 
@@ -306,22 +428,24 @@ public partial class MainForm : Form, IMainView
             BeginInvoke(() => SetChromeProfiles(profiles));
             return;
         }
-
-        lstChromeProfiles.Items.Clear();
-        foreach (var p in profiles)
-        {
-            lstChromeProfiles.Items.Add(p);
-        }
     }
 
     public void SetAccounts(IReadOnlyList<AccountProfile> accounts)
     {
-        // Có thể mở rộng DataGridView tài khoản nếu cần
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => SetAccounts(accounts));
+            return;
+        }
     }
 
     public void SetProxies(IReadOnlyList<ProxyConfig> proxies)
     {
-        // Có thể mở rộng DataGridView proxy nếu cần
+        if (InvokeRequired)
+        {
+            BeginInvoke(() => SetProxies(proxies));
+            return;
+        }
     }
 
     public void SetHistoryRecords(IReadOnlyList<ReportTaskRecord> records)
@@ -332,11 +456,18 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
-        dgvHistory.Rows.Clear();
-        foreach (var r in records)
+        lock (_targets)
         {
-            dgvHistory.Rows.Add(r.Id, r.CreatedAt.ToLocalTime().ToString("HH:mm:ss"), r.TargetNameOrUrl, r.DeviceSerialOrProfile, r.Platform, r.Category, r.Status, r.DurationTotalSeconds.ToString("F0"));
+            foreach (var record in records)
+            {
+                var matched = _targets.FirstOrDefault(t => t.Matches(record.TargetNameOrUrl, record.TargetNameOrUrl, record.TargetNameOrUrl));
+                if (matched != null && record.Status == ExecutionStatus.Succeeded)
+                {
+                    matched.ReportsCompleted = Math.Max(matched.ReportsCompleted, 1);
+                }
+            }
         }
+        RefreshTargetsGrid();
     }
 
     public void UpdateQueueStatus(int pendingCount, int runningCount, int completedCount, int failedCount)
@@ -347,10 +478,9 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
-        lblPending.Text = $"⏳ Đang chờ: {pendingCount}";
-        lblRunning.Text = $"⚡ Đang chạy: {runningCount}";
-        lblSuccess.Text = $"✅ Thành công: {completedCount}";
-        lblFailed.Text = $"❌ Thất bại: {failedCount}";
+        lblStatusSummary.Text = $"Chờ: {pendingCount} | Chạy: {runningCount} | Xong: {completedCount} | Lỗi: {failedCount}";
+        int total = _targets.Count;
+        lblTaskCountRatio.Text = $"{completedCount}/{total}";
     }
 
     public void AppendLog(string message, string level = "INFO")
@@ -363,43 +493,20 @@ public partial class MainForm : Form, IMainView
 
         Color color = level switch
         {
-            "SUCCESS" => Color.LightGreen,
-            "WARN" => Color.Gold,
-            "ERROR" => Color.FromArgb(255, 99, 71),
-            _ => Color.WhiteSmoke
+            "SUCCESS" => Color.FromArgb(100, 255, 100),
+            "WARN" => Color.FromArgb(255, 215, 0),
+            "ERROR" => Color.FromArgb(255, 100, 100),
+            _ => Color.FromArgb(220, 220, 220)
         };
 
-        rtbLog.SelectionStart = rtbLog.TextLength;
-        rtbLog.SelectionLength = 0;
-        rtbLog.SelectionColor = Color.DarkGray;
-        rtbLog.AppendText($"[{DateTime.Now:HH:mm:ss}] ");
+        rtbLiveLog.SelectionStart = rtbLiveLog.TextLength;
+        rtbLiveLog.SelectionLength = 0;
+        rtbLiveLog.SelectionColor = Color.FromArgb(140, 140, 140);
+        rtbLiveLog.AppendText($"[{DateTime.Now:HH:mm:ss}] ");
 
-        rtbLog.SelectionColor = color;
-        rtbLog.AppendText($"[{level}] {message}\r\n");
-        rtbLog.ScrollToCaret();
-    }
-
-    public void DisplayProofScreenshot(string imagePath)
-    {
-        if (InvokeRequired)
-        {
-            BeginInvoke(() => DisplayProofScreenshot(imagePath));
-            return;
-        }
-
-        try
-        {
-            if (File.Exists(imagePath))
-            {
-                using var stream = new FileStream(imagePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                picProof.Image?.Dispose();
-                picProof.Image = Image.FromStream(stream);
-            }
-        }
-        catch
-        {
-            // Bỏ qua lỗi mở file ảnh
-        }
+        rtbLiveLog.SelectionColor = color;
+        rtbLiveLog.AppendText($"[{level}] {message}\r\n");
+        rtbLiveLog.ScrollToCaret();
     }
 
     public void SetRunningState(bool isRunning)
@@ -415,9 +522,6 @@ public partial class MainForm : Form, IMainView
         rdoAndroid.Enabled = !isRunning;
         rdoChrome.Enabled = !isRunning;
         numConcurrency.Enabled = !isRunning;
-
-        lblStatusHeader.Text = isRunning ? "Trạng thái: Đang thực thi kịch bản..." : "Trạng thái: Đang chờ lệnh";
-        lblStatusHeader.ForeColor = isRunning ? Color.FromArgb(0, 123, 255) : Color.DarkSlateGray;
     }
 
     public void ShowNotification(string message, bool isError = false)

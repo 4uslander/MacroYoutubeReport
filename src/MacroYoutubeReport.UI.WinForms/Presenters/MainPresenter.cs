@@ -65,10 +65,6 @@ public sealed class MainPresenter
         {
             string level = step.IsSuccess ? "INFO" : "WARN";
             _view.AppendLog($"[{step.StepName}] {step.Message}", level);
-            if (!string.IsNullOrWhiteSpace(step.ScreenshotPath))
-            {
-                _view.DisplayProofScreenshot(step.ScreenshotPath);
-            }
         };
 
         _engine.OnTaskCompleted += record =>
@@ -82,11 +78,6 @@ public sealed class MainPresenter
             {
                 Interlocked.Increment(ref _failedCount);
                 _view.AppendLog($"Thất bại: [{record.TargetNameOrUrl}] - Lỗi: {record.ErrorMessage}", "ERROR");
-            }
-
-            if (!string.IsNullOrWhiteSpace(record.ScreenshotProofPath))
-            {
-                _view.DisplayProofScreenshot(record.ScreenshotProofPath);
             }
 
             UpdateStatusCounters();

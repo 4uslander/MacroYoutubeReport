@@ -7,7 +7,7 @@ using MacroYoutubeReport.Scheduler.Proxy;
 namespace MacroYoutubeReport.UI.WinForms.Views;
 
 /// <summary>
-/// Giao diện View cho màn hình chính của ứng dụng Macro YouTube Report (MVP Pattern).
+/// Giao diện View cho màn hình chính của ứng dụng Macro YouTube Report (MVP Pattern - Unified Single Dashboard).
 /// </summary>
 public interface IMainView
 {
@@ -45,7 +45,6 @@ public interface IMainView
 
     void UpdateQueueStatus(int pendingCount, int runningCount, int completedCount, int failedCount);
     void AppendLog(string message, string level = "INFO");
-    void DisplayProofScreenshot(string imagePath);
     void SetRunningState(bool isRunning);
     void ShowNotification(string message, bool isError = false);
 }

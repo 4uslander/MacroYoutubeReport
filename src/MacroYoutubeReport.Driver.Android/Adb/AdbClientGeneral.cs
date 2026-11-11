@@ -159,13 +159,29 @@ public sealed class AdbClientGeneral
     public async Task<(int Width, int Height)> GetScreenResolutionAsync(DeviceData device, CancellationToken ct = default)
     {
         string output = await ExecuteShellAsync(device, "wm size", ct).ConfigureAwait(false);
+
+        // 1. Ưu tiên hàng đầu: Override size (độ phân giải thực thi mà UIAutomator và hệ thống hiển thị sử dụng)
+        var overrideMatch = Regex.Match(output, @"Override size:\s*(\d{3,4})x(\d{3,4})", RegexOptions.IgnoreCase);
+        if (overrideMatch.Success && int.TryParse(overrideMatch.Groups[1].Value, out int ow) && int.TryParse(overrideMatch.Groups[2].Value, out int oh))
+        {
+            return (ow, oh);
+        }
+
+        // 2. Physical size nếu thiết bị không có override
+        var physicalMatch = Regex.Match(output, @"Physical size:\s*(\d{3,4})x(\d{3,4})", RegexOptions.IgnoreCase);
+        if (physicalMatch.Success && int.TryParse(physicalMatch.Groups[1].Value, out int pw) && int.TryParse(physicalMatch.Groups[2].Value, out int ph))
+        {
+            return (pw, ph);
+        }
+
+        // 3. Fallback tìm bất kỳ cụm width x height
         var match = Regex.Match(output, @"(\d{3,4})x(\d{3,4})");
         if (match.Success && int.TryParse(match.Groups[1].Value, out int w) && int.TryParse(match.Groups[2].Value, out int h))
         {
             return (w, h);
         }
 
-        return (1080, 2400);
+        return (720, 1480);
     }
 
     /// <summary>

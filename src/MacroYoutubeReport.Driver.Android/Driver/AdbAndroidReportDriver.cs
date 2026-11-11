@@ -1538,6 +1538,26 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
         if (doc == null) return;
 
+        // 1. Nút đóng [X] của banner/video quảng cáo nổi (promo floaty player hoặc popups ở nửa trên màn hình)
+        var promoCloseNode = doc.SelectSingleNode(
+            "//node[(@clickable='true' or @class='android.widget.ImageView' or @class='android.widget.ImageButton') and " +
+            "(@resource-id='com.google.android.youtube:id/floaty_close_button' or " +
+            "@resource-id='com.google.android.youtube:id/close_button' or " +
+            "@content-desc='닫기' or @content-desc='Close' or @content-desc='Đóng' or " +
+            "contains(@resource-id, 'dismiss_button') or contains(@content-desc, '닫기') or contains(@content-desc, 'Close')) and " +
+            "not(ancestor::node[contains(@resource-id, 'player') and not(contains(@resource-id, 'floaty'))])]"
+        );
+        if (promoCloseNode != null)
+        {
+            var elem = AdbUiXmlDumper.ParseElement(promoCloseNode);
+            if (elem != null && elem.Bounds.Top < (_screenResolution.Height * 0.35))
+            {
+                await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                await Task.Delay(800, ct).ConfigureAwait(false);
+            }
+        }
+
+        // 2. Các nút text thông thường (Hủy, Không cảm ơn, Để sau...)
         var dismissKeywords = new[] { "Không, cảm ơn", "Hủy", "Để sau", "Đóng", "Bỏ qua", "Dismiss", "Cancel", "Not now", "Skip", "Close", "취소", "나중에" };
         var btnNodes = doc.SelectNodes("//android.widget.Button | //android.widget.TextView[@clickable='true']");
         if (btnNodes != null)
@@ -1545,9 +1565,11 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             foreach (XmlNode b in btnNodes)
             {
                 string text = b.Attributes?["text"]?.Value ?? string.Empty;
+                string desc = b.Attributes?["content-desc"]?.Value ?? string.Empty;
+                string combined = $"{text} {desc}".Trim();
                 foreach (var kw in dismissKeywords)
                 {
-                    if (text.Equals(kw, StringComparison.OrdinalIgnoreCase))
+                    if (combined.Equals(kw, StringComparison.OrdinalIgnoreCase) || text.Equals(kw, StringComparison.OrdinalIgnoreCase))
                     {
                         var elem = AdbUiXmlDumper.ParseElement(b);
                         if (elem != null)

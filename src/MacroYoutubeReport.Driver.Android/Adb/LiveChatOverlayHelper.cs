@@ -342,30 +342,33 @@ public static class LiveChatOverlayHelper
                 if (meatballElem != null)
                 {
                     await AdbUiXmlDumper.Instance.TapElementAsync(device, meatballElem, ct).ConfigureAwait(false);
-                    await Task.Delay(800, ct).ConfigureAwait(false);
 
-                    // Sau khi bấm Meatball Icon, Bottom Sheet sẽ hiện ra chứa duy nhất mục '신고' (Báo cáo) ở đáy màn hình
-                    var popupDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-                    if (popupDoc != null)
+                    // Chờ Bottom Sheet trượt lên từ đáy màn hình (thử tối đa 3 lần, delay 600ms tránh lag)
+                    for (int bsWait = 0; bsWait < 3; bsWait++)
                     {
-                        var reportNodes = popupDoc.SelectNodes(
-                            "//node[(@text='신고' or @content-desc='신고' or contains(@text, '신고') or contains(@content-desc, '신고') or " +
-                            "@text='Report' or @content-desc='Report' or contains(@text, 'Report') or contains(@content-desc, 'Report') or " +
-                            "@text='Báo cáo' or @content-desc='Báo cáo' or contains(@text, 'Báo cáo') or contains(@content-desc, 'Báo cáo')) and " +
-                            "not(contains(@text, '실시간')) and not(contains(@content-desc, '실시간')) and not(contains(@text, '채팅')) and not(contains(@content-desc, '채팅'))]"
-                        );
-
-                        if (reportNodes != null)
+                        await Task.Delay(600, ct).ConfigureAwait(false);
+                        var popupDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+                        if (popupDoc != null)
                         {
-                            foreach (XmlNode rNode in reportNodes)
+                            var reportNodes = popupDoc.SelectNodes(
+                                "//node[(@text='신고' or @content-desc='신고' or contains(@text, '신고') or contains(@content-desc, '신고') or " +
+                                "@text='Report' or @content-desc='Report' or contains(@text, 'Report') or contains(@content-desc, 'Report') or " +
+                                "@text='Báo cáo' or @content-desc='Báo cáo' or contains(@text, 'Báo cáo') or contains(@content-desc, 'Báo cáo')) and " +
+                                "not(contains(@text, '실시간')) and not(contains(@content-desc, '실시간')) and not(contains(@text, '채팅')) and not(contains(@content-desc, '채팅'))]"
+                            );
+
+                            if (reportNodes != null && reportNodes.Count > 0)
                             {
-                                var repElem = AdbUiXmlDumper.ParseElement(rNode);
-                                // Nút 신고 trong Bottom Sheet nằm ở đáy màn hình (Y >= 65%)
-                                if (repElem != null && (screenHeight == 0 || repElem.CenterPoint.Y >= (screenHeight * 0.65)))
+                                foreach (XmlNode rNode in reportNodes)
                                 {
-                                    await AdbUiXmlDumper.Instance.TapElementAsync(device, repElem, ct).ConfigureAwait(false);
-                                    await Task.Delay(1200, ct).ConfigureAwait(false);
-                                    return true;
+                                    var repElem = AdbUiXmlDumper.ParseElement(rNode);
+                                    // Nút 신고 trong Bottom Sheet nằm ở nửa dưới màn hình (Y >= 60%)
+                                    if (repElem != null && (screenHeight == 0 || repElem.CenterPoint.Y >= (screenHeight * 0.60)))
+                                    {
+                                        await AdbUiXmlDumper.Instance.TapElementAsync(device, repElem, ct).ConfigureAwait(false);
+                                        await Task.Delay(1200, ct).ConfigureAwait(false);
+                                        return true;
+                                    }
                                 }
                             }
                         }

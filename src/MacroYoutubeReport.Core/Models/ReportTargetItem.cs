@@ -71,6 +71,7 @@ public sealed class ReportTargetItem
 
     /// <summary>
     /// So khớp tiêu đề và kênh từ kết quả quét giao diện.
+    /// Hỗ trợ cả khớp chính xác tuyệt đối lẫn khớp thông minh theo cụm từ khóa (Fuzzy / Token Matching).
     /// </summary>
     public bool Matches(string? foundTitle, string? foundChannel, string? foundUrl = null)
     {
@@ -80,31 +81,95 @@ public sealed class ReportTargetItem
                    TargetUrl.Contains(foundUrl, StringComparison.OrdinalIgnoreCase);
         }
 
-        string combined = $"{foundTitle} {foundChannel}";
+        string combined = $"{foundTitle} {foundChannel}".Trim();
+        if (string.IsNullOrWhiteSpace(combined)) return false;
+
         string cleanTitle = VideoTitle?.TrimEnd('.', '…', ' ') ?? string.Empty;
         string cleanChannel = ChannelName?.TrimEnd('.', '…', ' ') ?? string.Empty;
 
+        // 1. Trường hợp có cả Title lẫn Channel
         if (!string.IsNullOrWhiteSpace(cleanTitle) && !string.IsNullOrWhiteSpace(cleanChannel))
         {
-            return combined.Contains(cleanTitle, StringComparison.OrdinalIgnoreCase) &&
-                   combined.Contains(cleanChannel, StringComparison.OrdinalIgnoreCase);
+            // Bắt buộc phải đúng Kênh trước
+            if (!combined.Contains(cleanChannel, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            // 1.1. Khớp chính xác cả 2 chuỗi
+            if (combined.Contains(cleanTitle, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // 1.2. Khớp tiêu đề bị cắt ngắn (do YouTube thêm dấu ... ở cuối)
+            string trimmedTitle = cleanTitle.TrimEnd('.', '…', ' ');
+            if (trimmedTitle.Length >= 8 && combined.Contains(trimmedTitle, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            // 1.3. Khớp thông minh: Đúng KÊNH và tiêu đề video chứa các phân đoạn đặc trưng chính
+            var segments = cleanTitle.Split(new[] { '|', '-', ':', '[', ']', '(', ')' }, StringSplitOptions.RemoveEmptyEntries)
+                                     .Select(s => s.Trim())
+                                     .Where(s => s.Length >= 5 && 
+                                                 !s.Equals("실시간", StringComparison.OrdinalIgnoreCase) && 
+                                                 !s.Equals("live", StringComparison.OrdinalIgnoreCase) &&
+                                                 !s.Equals("stream", StringComparison.OrdinalIgnoreCase))
+                                     .ToList();
+
+            if (segments.Count > 0 && segments.Any(seg => combined.Contains(seg, StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+
+            // 1.4. Khớp từ khóa tiêu đề có tỷ lệ cao
+            if (IsTitleKeywordMatch(cleanTitle, combined))
+            {
+                return true;
+            }
+
+            return false; // Đã có cả Title và Channel thì không được fall-through sang chỉ check Channel!
         }
 
+        // 2. Chỉ có Title
         if (!string.IsNullOrWhiteSpace(cleanTitle))
         {
-            return combined.Contains(cleanTitle, StringComparison.OrdinalIgnoreCase);
+            return combined.Contains(cleanTitle, StringComparison.OrdinalIgnoreCase) || IsTitleKeywordMatch(cleanTitle, combined);
         }
 
+        // 3. Chỉ có Channel
         if (!string.IsNullOrWhiteSpace(cleanChannel))
         {
             return combined.Contains(cleanChannel, StringComparison.OrdinalIgnoreCase);
         }
 
+        // 4. Chỉ có Keyword
         if (!string.IsNullOrWhiteSpace(Keyword))
         {
             return combined.Contains(Keyword.Trim(), StringComparison.OrdinalIgnoreCase);
         }
 
         return false;
+    }
+
+    private static bool IsTitleKeywordMatch(string titlePattern, string candidateText)
+    {
+        var tokens = titlePattern.Split(new[] { ' ', '|', '-', ':', '[', ']', '(', ')', '#', ',' }, StringSplitOptions.RemoveEmptyEntries)
+                                 .Select(t => t.Trim())
+                                 .Where(t => t.Length >= 3 && 
+                                             !t.Equals("실시간", StringComparison.OrdinalIgnoreCase) && 
+                                             !t.Equals("live", StringComparison.OrdinalIgnoreCase) &&
+                                             !t.Equals("stream", StringComparison.OrdinalIgnoreCase))
+                                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                                 .ToList();
+
+        if (tokens.Count == 0) return false;
+
+        int matchedCount = tokens.Count(t => candidateText.Contains(t, StringComparison.OrdinalIgnoreCase));
+        double ratio = (double)matchedCount / tokens.Count;
+
+        // Khớp >= 60% từ khóa và tối thiểu 2 từ khóa đặc trưng (hoặc 1 từ khóa dài >= 8 ký tự)
+        return (ratio >= 0.60 && matchedCount >= 2) || (matchedCount >= 1 && tokens.Any(t => t.Length >= 8 && candidateText.Contains(t, StringComparison.OrdinalIgnoreCase)));
     }
 }

@@ -169,30 +169,41 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         var device = EnsureDevice();
         await EnsureAppReadyAsync(ct).ConfigureAwait(false);
 
-        // 1. Kiểm tra nếu ô tìm kiếm (search_edit_text) đã mở sẵn thì không cần bấm nút tìm kiếm
-        var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-        var searchInputNode = doc?.SelectSingleNode("//node[@resource-id='com.google.android.youtube:id/search_edit_text']");
+        // 1. Thử mở ô tìm kiếm (search_edit_text) với cơ chế Retry tối đa 3 lần
+        bool searchInputFound = false;
+        XmlNode? searchInputNode = null;
 
-        if (searchInputNode == null)
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            // 2. Kiểm tra nếu đang bị kẹt ở màn hình 알림 (Thông báo) -> bấm Back để về Home
+            ct.ThrowIfCancellationRequested();
+
+            var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            searchInputNode = doc?.SelectSingleNode("//node[@resource-id='com.google.android.youtube:id/search_edit_text']");
+            if (searchInputNode != null)
+            {
+                searchInputFound = true;
+                break;
+            }
+
+            // Kiểm tra nếu đang bị kẹt ở màn hình 알림 (Thông báo) -> bấm Back để về Home
             if (doc?.SelectSingleNode("//node[@text='알림' or @text='Notifications' or @text='Thông báo']") != null)
             {
                 await AdbClientGeneral.Instance.PressBackAsync(device, ct).ConfigureAwait(false);
-                await Task.Delay(1000, ct).ConfigureAwait(false);
+                await Task.Delay(800, ct).ConfigureAwait(false);
                 doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             }
 
             bool tappedSearch = false;
             if (doc != null)
             {
-                // Chọn CHÍNH XÁC nút Tìm kiếm (Loại trừ tuyệt đối nút 알림 / Notifications)
+                // Chọn nút Tìm kiếm theo XPath (Loại trừ tuyệt đối nút 알림 / Notifications)
                 var searchNode = doc.SelectSingleNode(
                     "//node[not(contains(@content-desc, '알림') or contains(@content-desc, 'Notification') or contains(@content-desc, 'Thông báo')) and " +
                     "(@content-desc='검색' or @content-desc='Search' or @content-desc='Tìm kiếm' or " +
                     "contains(@content-desc, '검색') or contains(@content-desc, 'Search') or contains(@content-desc, 'Tìm kiếm') or " +
                     "@resource-id='com.google.android.youtube:id/menu_search' or " +
-                    "(ancestor::node[@resource-id='com.google.android.youtube:id/menu_item_1'] and @resource-id='com.google.android.youtube:id/menu_item_view'))]");
+                    "contains(@resource-id, 'search_button') or " +
+                    "(ancestor::node[@resource-id='com.google.android.youtube:id/menu_item_1' or @resource-id='com.google.android.youtube:id/menu_item_2'] and @resource-id='com.google.android.youtube:id/menu_item_view'))]");
 
                 if (searchNode != null)
                 {
@@ -207,21 +218,49 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
             if (!tappedSearch)
             {
-                // Fallback: Nút Tìm kiếm trên YouTube Android luôn nằm ở góc trên bên phải (X ~ 94%, Y ~ 5%)
-                int sx = (int)(_screenResolution.Width * 0.94);
-                int sy = (int)(_screenResolution.Height * 0.05);
+                // Fallback: Nút Tìm kiếm trên YouTube Android nằm ở góc trên bên phải
+                // Tính toán Y an toàn dưới Status Bar (Y ~ 5.8% hoặc tối thiểu 120px)
+                int sx = (int)(_screenResolution.Width * 0.93);
+                int sy = Math.Max((int)(_screenResolution.Height * 0.058), 120);
                 await AdbClientGeneral.Instance.TapAsync(device, sx, sy, ct).ConfigureAwait(false);
             }
 
-            // Đợi ô nhập xuất hiện
+            // Chờ ô nhập xuất hiện (tối đa 3 giây)
             for (int i = 0; i < 6; i++)
             {
                 await Task.Delay(500, ct).ConfigureAwait(false);
                 var checkDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-                if (checkDoc?.SelectSingleNode("//node[@resource-id='com.google.android.youtube:id/search_edit_text']") != null)
+                searchInputNode = checkDoc?.SelectSingleNode("//node[@resource-id='com.google.android.youtube:id/search_edit_text']");
+                if (searchInputNode != null)
                 {
+                    searchInputFound = true;
                     break;
                 }
+            }
+
+            if (searchInputFound)
+            {
+                break;
+            }
+
+            await Task.Delay(600, ct).ConfigureAwait(false);
+        }
+
+        if (!searchInputFound)
+        {
+            throw new InvalidOperationException($"Không thể mở thanh tìm kiếm (search_edit_text) trên thiết bị '{_serial}' sau 3 lần thử.");
+        }
+
+        // 2. Chạm vào ô tìm kiếm để kích hoạt trỏ nhập
+        var inputDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+        var inputNode = inputDoc?.SelectSingleNode("//node[@resource-id='com.google.android.youtube:id/search_edit_text']");
+        if (inputNode != null)
+        {
+            var inputElem = AdbUiXmlDumper.ParseElement(inputNode);
+            if (inputElem != null)
+            {
+                await AdbUiXmlDumper.Instance.TapElementAsync(device, inputElem, ct).ConfigureAwait(false);
+                await Task.Delay(300, ct).ConfigureAwait(false);
             }
         }
 
@@ -249,7 +288,7 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
     /// <summary>
     /// Áp dụng bộ lọc tìm kiếm nâng cao (Phân loại, Độ dài, Ngày tải lên, Live, v.v.) theo cấu hình AutoYouTube.
-    /// Tự động bấm nút '옵션 더보기' -> chọn '검색 필터' -> chọn các tiêu chí -> bấm '적용'.
+    /// Tương thích cả giao diện Chip lọc ngang mới lẫn menu popup 3 chấm truyền thống.
     /// </summary>
     public async Task<bool> ApplySearchFilterAsync(SearchFilterConfig? filter = null, CancellationToken ct = default)
     {
@@ -269,14 +308,46 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             if (doc == null) return false;
 
-            // 2. Tìm nút "옵션 더보기" (More options) ở góc trên bên phải trang tìm kiếm
-            var moreOptionsNode = doc.SelectSingleNode(
-                "//node[(@content-desc='옵션 더보기' or @content-desc='More options' or @content-desc='Tùy chọn khác' or @content-desc='Thêm tùy chọn' or " +
-                "contains(@content-desc, '옵션 더보기') or contains(@content-desc, 'More options')) and @clickable='true']");
-
-            if (moreOptionsNode != null)
+            // 1.1. Ưu tiên kiểm tra Chip lọc nhanh trên thanh ngang (Horizontal Chips Bar) của YouTube mới
+            if (filter.LiveOnly)
             {
-                var elem = AdbUiXmlDumper.ParseElement(moreOptionsNode);
+                var liveChipNode = doc.SelectSingleNode(
+                    "//node[(contains(@resource-id, 'chip') or @class='android.widget.Button' or @class='android.widget.TextView') and " +
+                    "(@text='실시간' or @text='Live' or @text='Trực tiếp' or @content-desc='실시간' or @content-desc='Live' or @content-desc='Trực tiếp')]"
+                );
+
+                if (liveChipNode != null)
+                {
+                    bool isSelected = liveChipNode.Attributes?["selected"]?.Value == "true";
+                    if (!isSelected)
+                    {
+                        var elem = AdbUiXmlDumper.ParseElement(liveChipNode);
+                        if (elem != null)
+                        {
+                            await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                            await Task.Delay(2000, ct).ConfigureAwait(false);
+
+                            if (filter.Type == SearchTypeFilter.All && filter.Duration == SearchDurationFilter.All && filter.UploadDate == SearchUploadDateFilter.All)
+                            {
+                                return true;
+                            }
+                        }
+                    }
+                    else if (filter.Type == SearchTypeFilter.All && filter.Duration == SearchDurationFilter.All && filter.UploadDate == SearchUploadDateFilter.All)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            // 2. Mở hộp thoại/menu Bộ lọc: Tìm nút Filter chuyên biệt hoặc nút '옵션 더보기' (More options)
+            var filterBtnNode = doc.SelectSingleNode(
+                "//node[(@clickable='true' or @class='android.widget.ImageView' or @class='android.widget.ImageButton') and " +
+                "(contains(@content-desc, '필터') or contains(@content-desc, 'Filter') or contains(@content-desc, 'Bộ lọc') or contains(@resource-id, 'filter'))]");
+
+            if (filterBtnNode != null)
+            {
+                var elem = AdbUiXmlDumper.ParseElement(filterBtnNode);
                 if (elem != null)
                 {
                     await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
@@ -284,15 +355,30 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             }
             else
             {
-                // Fallback bấm góc trên cùng bên phải (X ~ 95%, Y ~ 7.5%)
-                int fx = (int)(_screenResolution.Width * 0.95);
-                int fy = (int)(_screenResolution.Height * 0.075);
-                await AdbClientGeneral.Instance.TapAsync(device, fx, fy, ct).ConfigureAwait(false);
+                var moreOptionsNode = doc.SelectSingleNode(
+                    "//node[(@content-desc='옵션 더보기' or @content-desc='More options' or @content-desc='Tùy chọn khác' or @content-desc='Thêm tùy chọn' or " +
+                    "contains(@content-desc, '옵션 더보기') or contains(@content-desc, 'More options')) and @clickable='true']");
+
+                if (moreOptionsNode != null)
+                {
+                    var elem = AdbUiXmlDumper.ParseElement(moreOptionsNode);
+                    if (elem != null)
+                    {
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                    }
+                }
+                else
+                {
+                    // Fallback bấm góc trên cùng bên phải (X ~ 95%, Y ~ 5.8%)
+                    int fx = (int)(_screenResolution.Width * 0.95);
+                    int fy = Math.Max((int)(_screenResolution.Height * 0.058), 120);
+                    await AdbClientGeneral.Instance.TapAsync(device, fx, fy, ct).ConfigureAwait(false);
+                }
             }
 
             await Task.Delay(1000, ct).ConfigureAwait(false);
 
-            // 3. Tìm và bấm menu "검색 필터" (Search filters)
+            // 3. Nếu mở ra menu popup dạng 3 chấm, bấm vào mục "검색 필터" (Search filters)
             var menuDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             var filterMenuNode = menuDoc?.SelectSingleNode(
                 "//node[@text='검색 필터' or @text='Search filters' or @text='Bộ lọc tìm kiếm' or @text='Bộ lọc' or " +
@@ -304,17 +390,9 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                 if (elem != null)
                 {
                     await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                    await Task.Delay(1200, ct).ConfigureAwait(false);
                 }
             }
-            else
-            {
-                // Fallback vị trí menu popup thông thường
-                int mx = (int)(_screenResolution.Width * 0.72);
-                int my = (int)(_screenResolution.Height * 0.08);
-                await AdbClientGeneral.Instance.TapAsync(device, mx, my, ct).ConfigureAwait(false);
-            }
-
-            await Task.Delay(1200, ct).ConfigureAwait(false);
 
             // 4. Màn hình bảng cài đặt bộ lọc "검색 필터"
             var dialogDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
@@ -396,7 +474,7 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             {
                 if (filter.LiveOnly)
                 {
-                    await ToggleChipFilterAsync(device, dialogDoc, "라이브", "Live", ct).ConfigureAwait(false);
+                    await ToggleChipFilterAsync(device, dialogDoc, "실시간", "Live", ct).ConfigureAwait(false);
                 }
                 if (filter.FourKOnly)
                 {
@@ -502,7 +580,8 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         try
         {
             var chipNode = doc.SelectSingleNode(
-                $"//node[(@text='{koreanText}' or @text='{englishText}' or contains(@text, '{koreanText}') or contains(@content-desc, '{koreanText}')) and @clickable='true']");
+                $"//node[(@text='{koreanText}' or @text='{englishText}' or contains(@text, '{koreanText}') or contains(@content-desc, '{koreanText}') or " +
+                $"contains(@text, '실시간') or contains(@content-desc, '실시간') or contains(@text, '라이브') or contains(@content-desc, '라이브')) and @clickable='true']");
 
             if (chipNode != null)
             {
@@ -535,11 +614,12 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         string cleanTitle = target.VideoTitle?.TrimEnd('.', '…', ' ') ?? string.Empty;
 
-        // Cơ chế AutoYouTube: Lướt liên tục (đến 50 lần) để tìm video mục tiêu
+        // Lướt tìm video mục tiêu (tối đa 50 lần)
         int maxScrollAttempts = 50;
         int midX = _screenResolution.Width / 2;
-        int startY = (int)(_screenResolution.Height * 0.75);
-        int endY = (int)(_screenResolution.Height * 0.28);
+        // Khoảng cách vuốt nhẹ nhàng (mỗi lần vuốt khoảng 20% chiều cao màn hình để không bỏ sót thẻ video)
+        int startY = (int)(_screenResolution.Height * 0.62);
+        int endY = (int)(_screenResolution.Height * 0.42);
 
         for (int attempt = 0; attempt < maxScrollAttempts; attempt++)
         {
@@ -557,20 +637,51 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                         string desc = node.Attributes?["content-desc"]?.Value ?? string.Empty;
                         string text = node.Attributes?["text"]?.Value ?? string.Empty;
 
-                        // Bỏ qua các nút điều hướng hoặc thanh hệ thống
-                        if (desc.Contains("Shorts") || desc.Contains("홈") || desc.Contains("구독") || desc.Contains("보관함") || desc.Contains("위로 이동") || desc.Contains("옵션 더보기"))
+                        // Bỏ qua các nút điều hướng, công cụ tìm kiếm hoặc thanh hệ thống
+                        if (desc.Contains("Shorts") || desc.Contains("홈") || desc.Contains("구독") || 
+                            desc.Contains("보관함") || desc.Contains("위로 이동") || desc.Contains("옵션 더보기") ||
+                            desc.Contains("지우기") || desc.Contains("음성 검색") || desc.Contains("만들기") ||
+                            desc.Contains("내 페이지") || desc.Contains("작업 메뉴") || desc.Contains("필터"))
                         {
                             continue;
                         }
 
+                        // So khớp bằng bộ lọc thông minh (Fuzzy/Token Matching + Channel + Title)
                         bool isMatch = target.Matches(text, desc, null) ||
                                        (!string.IsNullOrWhiteSpace(cleanTitle) && cleanTitle.Length >= 4 &&
                                         (desc.Contains(cleanTitle, StringComparison.OrdinalIgnoreCase) || text.Contains(cleanTitle, StringComparison.OrdinalIgnoreCase)));
 
                         if (isMatch)
                         {
+                            // Nếu mục tiêu là LiveStream, BẮT BUỘC kiểm tra xem video có đang phát trực tiếp thật không
+                            // Tránh chọn nhầm video đã kết thúc (có chữ '스트리밍 시간:' / '전에 스트리밍됨' / 'Streamed') hoặc video thường
+                            if (target.TargetType == ReportTargetType.LiveStream)
+                            {
+                                string combinedDesc = $"{desc} {text}".Trim();
+                                bool isEndedStream = combinedDesc.Contains("스트리밍 시간:", StringComparison.OrdinalIgnoreCase) ||
+                                                     combinedDesc.Contains("전에 스트리밍됨", StringComparison.OrdinalIgnoreCase) ||
+                                                     combinedDesc.Contains("Streamed", StringComparison.OrdinalIgnoreCase);
+
+                                if (isEndedStream)
+                                {
+                                    continue; // Bỏ qua video stream đã kết thúc!
+                                }
+
+                                bool isLiveIndicator = combinedDesc.Contains("실시간", StringComparison.OrdinalIgnoreCase) ||
+                                                       combinedDesc.Contains("라이브", StringComparison.OrdinalIgnoreCase) ||
+                                                       combinedDesc.Contains("LIVE", StringComparison.OrdinalIgnoreCase) ||
+                                                       combinedDesc.Contains("스트리밍 중", StringComparison.OrdinalIgnoreCase) ||
+                                                       combinedDesc.Contains("시청자", StringComparison.OrdinalIgnoreCase);
+
+                                if (!isLiveIndicator)
+                                {
+                                    continue; // Bỏ qua video không có nhãn Live
+                                }
+                            }
+
                             var elem = AdbUiXmlDumper.ParseElement(node);
-                            if (elem != null && elem.Bounds.Y > (_screenResolution.Height * 0.08) && elem.Bounds.Y < (_screenResolution.Height * 0.88))
+                            // Dùng CenterPoint.Y để đảm bảo bấm trúng tâm phần tử đang hiển thị an toàn
+                            if (elem != null && elem.CenterPoint.Y > (_screenResolution.Height * 0.08) && elem.CenterPoint.Y < (_screenResolution.Height * 0.90))
                             {
                                 await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
                                 await Task.Delay(2500, ct).ConfigureAwait(false);
@@ -583,9 +694,11 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                 }
             }
 
-            int duration = Random.Shared.Next(400, 650);
+            // Vuốt chậm và mượt mà để tránh quán tính trượt vọt qua video
+            int duration = Random.Shared.Next(500, 700);
             await AdbClientGeneral.Instance.SwipeAsync(device, midX, startY, midX, endY, duration, ct).ConfigureAwait(false);
-            await Task.Delay(Random.Shared.Next(1000, 1500), ct).ConfigureAwait(false);
+            // Dừng 1.5s - 2s để danh sách đứng yên hoàn toàn trước khi dump UI lần tiếp theo
+            await Task.Delay(Random.Shared.Next(1500, 2000), ct).ConfigureAwait(false);
         }
 
         return false;
@@ -687,17 +800,29 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
     {
         var device = EnsureDevice();
 
-        // 1. Thử bấm nút '추가 작업' (More actions) trên thanh nút cuộn ngang ngay dưới video trước
-        bool tappedMore = await LiveChatOverlayHelper.TapActionRowMoreButtonAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
-        if (!tappedMore)
+        // 0. Đảm bảo đóng triệt để bảng mô tả video (nếu lỡ mở) và Live Chat trước khi thao tác
+        await LiveChatOverlayHelper.EnsureDescriptionPanelClosedAsync(device, ct).ConfigureAwait(false);
+        await LiveChatOverlayHelper.EnsureLiveChatClosedAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
+
+        // 1. Thử tìm và nhấn nút Báo cáo / 3 chấm trên thanh ngang Action Bar (chuẩn xác & tự nhiên)
+        bool opened = await LiveChatOverlayHelper.TapActionRowMoreButtonAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
+        if (opened)
         {
-            // Nếu không có, chạm vào video player để đánh thức thanh điều khiển và bấm nút Cài đặt/3 chấm
-            await LiveChatOverlayHelper.AwakenPlayerControlsAndOpenSettingsAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
+            return true;
         }
 
-        await Task.Delay(1200, ct).ConfigureAwait(false);
+        await Task.Delay(800, ct).ConfigureAwait(false);
 
-        // 2. Quét Bottom Sheet menu mở ra để tìm mục Báo cáo (신고 / Report / Báo cáo)
+        // 2. Nếu tình cờ bảng mô tả bị bật lên, dập tắt ngay
+        if (await LiveChatOverlayHelper.IsDescriptionPanelOpenAsync(device, ct).ConfigureAwait(false))
+        {
+            await LiveChatOverlayHelper.EnsureDescriptionPanelClosedAsync(device, ct).ConfigureAwait(false);
+            await Task.Delay(500, ct).ConfigureAwait(false);
+            opened = await LiveChatOverlayHelper.TapActionRowMoreButtonAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
+            if (opened) return true;
+        }
+
+        // 3. Quét Bottom Sheet menu tìm mục Báo cáo (신고 / Report / Báo cáo) nếu Bottom sheet đã được mở
         var bottomDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
         if (bottomDoc == null) return false;
 
@@ -716,55 +841,12 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                     if (combined.Contains(kw, StringComparison.OrdinalIgnoreCase))
                     {
                         var elem = AdbUiXmlDumper.ParseElement(node);
-                        if (elem != null)
+                        // BẮT BUỘC: Y phải >= 60% chiều cao màn hình (Bottom Sheet) và chiều cao thẻ không quá lớn để tránh chạm nhầm
+                        if (elem != null && elem.CenterPoint.Y >= (_screenResolution.Height * 0.60) && elem.Bounds.Height < (_screenResolution.Height * 0.25))
                         {
                             await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
                             await Task.Delay(1500, ct).ConfigureAwait(false);
                             return true;
-                        }
-                    }
-                }
-            }
-
-            // Nếu trong menu có mục '추가 설정' / '고급 설정' (Additional/Advanced settings), bấm vào để tìm Báo cáo bên trong
-            foreach (XmlNode node in menuNodes)
-            {
-                string text = node.Attributes?["text"]?.Value ?? string.Empty;
-                string desc = node.Attributes?["content-desc"]?.Value ?? string.Empty;
-                if (text.Contains("추가 설정") || desc.Contains("추가 설정") || 
-                    text.Contains("고급 설정") || desc.Contains("고급 설정") ||
-                    text.Contains("기타") || desc.Contains("기타") ||
-                    text.Contains("Additional settings") || text.Contains("Cài đặt bổ sung"))
-                {
-                    var elem = AdbUiXmlDumper.ParseElement(node);
-                    if (elem != null)
-                    {
-                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
-                        await Task.Delay(1000, ct).ConfigureAwait(false);
-
-                        var subDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-                        var subNodes = subDoc?.SelectNodes("//node[(@class='android.view.ViewGroup' or @class='android.widget.TextView' or @class='android.widget.Button') and (@text!='' or @content-desc!='')]");
-                        if (subNodes != null)
-                        {
-                            foreach (XmlNode sn in subNodes)
-                            {
-                                string st = sn.Attributes?["text"]?.Value ?? string.Empty;
-                                string sd = sn.Attributes?["content-desc"]?.Value ?? string.Empty;
-                                string sc = $"{st} {sd}".Trim();
-                                foreach (var kw in reportKeywords)
-                                {
-                                    if (sc.Contains(kw, StringComparison.OrdinalIgnoreCase))
-                                    {
-                                        var subElem = AdbUiXmlDumper.ParseElement(sn);
-                                        if (subElem != null)
-                                        {
-                                            await AdbUiXmlDumper.Instance.TapElementAsync(device, subElem, ct).ConfigureAwait(false);
-                                            await Task.Delay(1500, ct).ConfigureAwait(false);
-                                            return true;
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -875,6 +957,68 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             }
         }
 
+        // 2b. Litho / Canvas Fallback: Xử lý giao diện YouTube mới (Litho/Compose) vẽ trực tiếp lên Canvas không gắn text/desc vào accessibility nodes
+        if (!categorySelected)
+        {
+            // Nếu lý do nằm ở nửa sau danh sách (như Spam/Scam/Fraud), vuốt cuộn xuống đáy dialog trước
+            if (reasonConfig.Category == ReportReasonCategory.FinancialOrCryptoScam ||
+                reasonConfig.Category == ReportReasonCategory.SpamOrMisleading ||
+                reasonConfig.Category == ReportReasonCategory.InfringesMyRights)
+            {
+                int scrollStartY = (int)(_screenResolution.Height * 0.70);
+                int scrollEndY = (int)(_screenResolution.Height * 0.35);
+                await AdbClientGeneral.Instance.SwipeAsync(device, midX, scrollStartY, midX, scrollEndY, 350, ct).ConfigureAwait(false);
+                await Task.Delay(800, ct).ConfigureAwait(false);
+            }
+
+            var lithoDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (lithoDoc != null)
+            {
+                var clickableRows = lithoDoc.SelectNodes("//node[contains(@class, 'ViewGroup') and @clickable='true']");
+                if (clickableRows != null && clickableRows.Count >= 5)
+                {
+                    var rowElements = new List<AdbUiElement>();
+                    foreach (XmlNode n in clickableRows)
+                    {
+                        var elem = AdbUiXmlDumper.ParseElement(n);
+                        // Lọc các hàng danh sách trong dialog: nằm trong khoảng Y từ 15% đến 92%, chiều cao 70px - 250px, chiều rộng >= 70% màn hình
+                        if (elem != null &&
+                            elem.Bounds.Height >= 70 && elem.Bounds.Height <= 250 &&
+                            elem.Bounds.Width >= (_screenResolution.Width * 0.70) &&
+                            elem.Bounds.Top >= (_screenResolution.Height * 0.15) &&
+                            elem.Bounds.Bottom <= (_screenResolution.Height * 0.92))
+                        {
+                            rowElements.Add(elem);
+                        }
+                    }
+
+                    rowElements.Sort((a, b) => a.Bounds.Top.CompareTo(b.Bounds.Top));
+
+                    if (rowElements.Count >= 5)
+                    {
+                        // Khi đã cuộn xuống đáy:
+                        // Hàng cuối cùng (rowElements.Count - 1) là '법적 문제' (Legal issue)
+                        // Hàng áp chót (rowElements.Count - 2) là '스팸 또는 혼동을 야기하는 콘텐츠' (Spam/Scam/Fraud)
+                        int targetIdx = reasonConfig.Category switch
+                        {
+                            ReportReasonCategory.FinancialOrCryptoScam => rowElements.Count - 2,
+                            ReportReasonCategory.SpamOrMisleading => rowElements.Count - 2,
+                            ReportReasonCategory.InfringesMyRights => rowElements.Count - 1,
+                            ReportReasonCategory.Misinformation => Math.Max(0, rowElements.Count - 5),
+                            ReportReasonCategory.PromotesTerrorism => Math.Max(0, rowElements.Count - 3),
+                            ReportReasonCategory.ChildAbuse => Math.Max(0, rowElements.Count - 4),
+                            _ => rowElements.Count - 2
+                        };
+
+                        targetIdx = Math.Clamp(targetIdx, 0, rowElements.Count - 1);
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, rowElements[targetIdx], ct).ConfigureAwait(false);
+                        await Task.Delay(800, ct).ConfigureAwait(false);
+                        categorySelected = true;
+                    }
+                }
+            }
+        }
+
         if (!categorySelected)
         {
             // Không chọn được lý do báo cáo -> Bắt buộc báo thất bại, không được silent pass!
@@ -883,20 +1027,47 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         await Task.Delay(1000, ct).ConfigureAwait(false);
 
-        // 3. Nhấn nút Tiếp theo ('다음' / 'Next' / 'Tiếp theo')
-        var nextDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-        if (nextDoc != null)
+        // 3. Nhấn nút Tiếp theo ('다음' / 'Next' / 'Tiếp theo') hoặc nút Báo cáo ('신고' / 'Report')
+        bool tappedNext = false;
+        for (int retryNext = 0; retryNext < 3; retryNext++)
         {
-            var nextNode = nextDoc.SelectSingleNode("//node[(@class='android.widget.Button' or @class='android.view.ViewGroup' or @class='android.widget.TextView') and (@text='다음' or @content-desc='다음' or @text='Next' or @content-desc='Next' or @text='Tiếp theo' or @content-desc='Tiếp theo')]");
-            if (nextNode != null)
+            var nextDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (nextDoc != null)
             {
-                var nextElem = AdbUiXmlDumper.ParseElement(nextNode);
-                if (nextElem != null)
+                var nextNode = nextDoc.SelectSingleNode(
+                    "//node[@resource-id='android:id/button1' or contains(@resource-id, 'button1') or contains(@resource-id, 'positive_button') or " +
+                    "((@class='android.widget.Button' or @class='android.view.ViewGroup' or @class='android.widget.TextView') and " +
+                    "(contains(@text, '다음') or contains(@content-desc, '다음') or " +
+                    "contains(@text, 'Next') or contains(@content-desc, 'Next') or " +
+                    "contains(@text, 'Tiếp theo') or contains(@content-desc, 'Tiếp theo') or " +
+                    "@text='신고' or @content-desc='신고' or @text='Report' or @content-desc='Report' or @text='Báo cáo' or @content-desc='Báo cáo' or " +
+                    "contains(@text, '신고') or contains(@content-desc, '신고')) and " +
+                    "not(contains(@text, '취소')) and not(contains(@text, 'Hủy')) and not(contains(@text, 'Cancel')))]"
+                );
+
+                if (nextNode != null)
                 {
-                    await AdbUiXmlDumper.Instance.TapElementAsync(device, nextElem, ct).ConfigureAwait(false);
-                    await Task.Delay(2000, ct).ConfigureAwait(false);
+                    var nextElem = AdbUiXmlDumper.ParseElement(nextNode);
+                    if (nextElem != null)
+                    {
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, nextElem, ct).ConfigureAwait(false);
+                        await Task.Delay(2000, ct).ConfigureAwait(false);
+                        tappedNext = true;
+                        break;
+                    }
                 }
             }
+            await Task.Delay(600, ct).ConfigureAwait(false);
+        }
+
+        // Fallback tọa độ: Nút '다음' trong BottomSheet YouTube nằm ở góc dưới tâm (Y ~ 92%)
+        if (!tappedNext)
+        {
+            int nextX = _screenResolution.Width / 2;
+            int nextY = (int)(_screenResolution.Height * 0.92);
+            await AdbClientGeneral.Instance.TapAsync(device, nextX, nextY, ct).ConfigureAwait(false);
+            await Task.Delay(2000, ct).ConfigureAwait(false);
+            tappedNext = true;
         }
 
         // 4. Xử lý Trang 2: Nhập nội dung lý do báo cáo vào ô EditText & Bấm nút gửi Báo cáo
@@ -1027,6 +1198,40 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             await Task.Delay(500, ct).ConfigureAwait(false);
         }
 
+        // 6. KIỂM TRA BẢO VỆ CUỐI CÙNG: Hộp thoại báo cáo đã thực sự đóng và hoàn tất chưa?
+        for (int v = 0; v < 3; v++)
+        {
+            var verifyDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (verifyDoc != null)
+            {
+                bool isReportDialogStillPresent = verifyDoc.SelectSingleNode(
+                    "//node[contains(@text, '동영상 또는 개체 신고') or contains(@text, '신고 사유') or " +
+                    "@resource-id='android:id/select_dialog_listview' or contains(@text, '세부정보 추가') or " +
+                    "(contains(@text, '스팸 또는') and @checkable='true')]"
+                ) != null;
+
+                if (isReportDialogStillPresent)
+                {
+                    // Nếu vẫn còn kẹt ở dialog, thử bấm lại nút Positive / Tiếp theo một lần nữa
+                    var rescueBtn = verifyDoc.SelectSingleNode("//node[@resource-id='android:id/button1' or contains(@resource-id, 'button1') or contains(@text, '다음') or contains(@text, '신고')]");
+                    if (rescueBtn != null)
+                    {
+                        var rescueElem = AdbUiXmlDumper.ParseElement(rescueBtn);
+                        if (rescueElem != null)
+                        {
+                            await AdbUiXmlDumper.Instance.TapElementAsync(device, rescueElem, ct).ConfigureAwait(false);
+                            await Task.Delay(1500, ct).ConfigureAwait(false);
+                            continue;
+                        }
+                    }
+
+                    // Vẫn kẹt ở dialog sau khi thử lại -> BẮT BUỘC BÁO THẤT BẠI, TUYỆT ĐỐI KHÔNG BÁO THÀNH CÔNG!
+                    return false;
+                }
+            }
+            break;
+        }
+
         return true;
     }
 
@@ -1125,42 +1330,61 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
     {
         var device = EnsureDevice();
 
-        // 1. Kiểm tra và đóng Live Chat nếu đang mở che khuất các nút hành động của video
-        bool wasChatOpen = await LiveChatOverlayHelper.IsLiveChatOpenAsync(device, ct).ConfigureAwait(false);
-        if (wasChatOpen)
-        {
-            await LiveChatOverlayHelper.EnsureLiveChatClosedAsync(device, ct).ConfigureAwait(false);
-            await Task.Delay(1200, ct).ConfigureAwait(false);
-        }
+        // 1. Natural delay 1.5s - 3s mô phỏng người dùng thật dừng lại quan sát trước khi quyết định báo cáo
+        await Task.Delay(Random.Shared.Next(1500, 3000), ct).ConfigureAwait(false);
 
-        // 2. Thử mở menu Báo cáo (ưu tiên thanh nút ngang dưới video, sau đó là icon bánh răng Player)
+        // 2. Đảm bảo đóng triệt để cả bảng mô tả video (nếu lỡ mở) lẫn Live Chat
+        await LiveChatOverlayHelper.EnsureDescriptionPanelClosedAsync(device, ct).ConfigureAwait(false);
+        await LiveChatOverlayHelper.EnsureLiveChatClosedAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
+        await Task.Delay(600, ct).ConfigureAwait(false);
+
+        // 3. Thử mở menu Báo cáo qua thanh Action Bar
         bool opened = false;
-        for (int tryOpen = 0; tryOpen < 2; tryOpen++)
+        for (int tryOpen = 0; tryOpen < 3; tryOpen++)
         {
             opened = await OpenReportMenuAsync(ct).ConfigureAwait(false);
             if (opened) break;
-            await Task.Delay(1000, ct).ConfigureAwait(false);
+
+            await LiveChatOverlayHelper.EnsureDescriptionPanelClosedAsync(device, ct).ConfigureAwait(false);
+            await LiveChatOverlayHelper.EnsureLiveChatClosedAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
+            await Task.Delay(1200, ct).ConfigureAwait(false);
         }
 
-        // 3. Nếu không mở được dưới video, dùng phương thức chạm đánh thức Player Controls
+        // 3b. Fallback: Nếu không mở được dưới Action Bar, dùng cử chỉ chạm đánh thức Player Controls (Bánh răng cài đặt/3 chấm -> 신고)
         if (!opened)
         {
-            await LiveChatOverlayHelper.AwakenPlayerControlsAndOpenSettingsAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
-            await Task.Delay(1000, ct).ConfigureAwait(false);
-
-            // Tìm nút Báo cáo trong popup menu cài đặt
-            var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-            if (doc != null)
+            bool settingsOpened = await LiveChatOverlayHelper.AwakenPlayerControlsAndOpenSettingsAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
+            if (settingsOpened)
             {
-                var reportNode = doc.SelectSingleNode("//node[contains(@text, 'Báo cáo') or contains(@text, 'Report') or contains(@text, '신고')]");
-                if (reportNode != null)
+                var bottomDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+                if (bottomDoc != null)
                 {
-                    var elem = AdbUiXmlDumper.ParseElement(reportNode);
-                    if (elem != null)
+                    var reportKeywords = UiLanguageManager.GetReportMenuKeywords();
+                    var menuNodes = bottomDoc.SelectNodes("//node[(@class='android.view.ViewGroup' or @class='android.widget.TextView' or @class='android.widget.Button') and (@text!='' or @content-desc!='')]");
+                    if (menuNodes != null)
                     {
-                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
-                        await Task.Delay(1200, ct).ConfigureAwait(false);
-                        opened = true;
+                        foreach (XmlNode node in menuNodes)
+                        {
+                            string text = node.Attributes?["text"]?.Value ?? string.Empty;
+                            string desc = node.Attributes?["content-desc"]?.Value ?? string.Empty;
+                            string combined = $"{text} {desc}".Trim();
+
+                            foreach (var kw in reportKeywords)
+                            {
+                                if (combined.Contains(kw, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    var elem = AdbUiXmlDumper.ParseElement(node);
+                                    if (elem != null && elem.CenterPoint.Y >= (_screenResolution.Height * 0.40))
+                                    {
+                                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                                        await Task.Delay(1500, ct).ConfigureAwait(false);
+                                        opened = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (opened) break;
+                        }
                     }
                 }
             }
@@ -1248,6 +1472,18 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             if (doc != null)
             {
+                // Nếu hộp thoại báo cáo vẫn còn kẹt trên màn hình thì chắc chắn chưa hoàn tất báo cáo
+                bool isStillInReportDialog = doc.SelectSingleNode(
+                    "//node[contains(@text, '동영상 또는 개체 신고') or contains(@text, '신고 사유') or " +
+                    "@resource-id='android:id/select_dialog_listview' or contains(@text, '세부정보 추가') or " +
+                    "(contains(@text, '스팸 또는') and @checkable='true')]"
+                ) != null;
+
+                if (isStillInReportDialog)
+                {
+                    return false;
+                }
+
                 var textNodes = doc.SelectNodes("//android.widget.TextView[@text!='']");
                 if (textNodes != null)
                 {
@@ -1268,7 +1504,20 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             await Task.Delay(600, ct).ConfigureAwait(false);
         }
 
-        return true;
+        // Kiểm tra lần cuối: Nếu không còn dialog báo cáo và màn hình đã trở lại video bình thường thì xem như đã tiếp nhận
+        var finalDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+        if (finalDoc != null)
+        {
+            bool isDialogLeft = finalDoc.SelectSingleNode(
+                "//node[contains(@text, '동영상 또는 개체 신고') or contains(@text, '신고 사유') or " +
+                "@resource-id='android:id/select_dialog_listview' or contains(@text, '세부정보 추가') or " +
+                "(contains(@text, '스팸 또는') and @checkable='true')]"
+            ) != null;
+
+            return !isDialogLeft;
+        }
+
+        return false;
     }
 
     public async Task<string> CaptureScreenshotAsync(string stepPrefix, CancellationToken ct = default)

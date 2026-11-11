@@ -483,7 +483,7 @@ public static class ScenarioDefinitions
 
                 string shot = await driver.CaptureScreenshotAsync("04_LiveReportSubmitted", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Báo cáo vi phạm", $"Đã gửi báo cáo livestream vi phạm: [{reason.Category}] - {reason.CustomDetails}", shot);
-            }, TimeSpan.FromSeconds(90)),
+            }, TimeSpan.FromSeconds(120)),
 
             new DelegateWorkflowStep("5. Xác thực phản hồi từ YouTube", async (driver, ctx, ct) =>
             {
@@ -496,7 +496,7 @@ public static class ScenarioDefinitions
                     return ReportStepResult.Success("Xác nhận thành công", "YouTube đã xác nhận tiếp nhận báo cáo livestream vi phạm.", shot);
                 }
 
-                return ReportStepResult.Success("Hoàn thành báo cáo", "Đã gửi báo cáo (chờ YouTube duyệt tiếp nhận).", shot);
+                return ReportStepResult.Failure("Chưa hoàn tất", "Hộp thoại báo cáo chưa được gửi thành công hoặc vẫn còn mở trên màn hình.", shot);
             }, TimeSpan.FromSeconds(45))
         };
     }

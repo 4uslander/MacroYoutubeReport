@@ -87,7 +87,7 @@ public class ReportModelsTests
         var config = ReportScenarioConfig.CreateLiveStreamFinancialScamConfig();
         Assert.NotNull(config.SearchFilter);
         Assert.True(config.SearchFilter.LiveOnly);
-        Assert.Equal(SearchUploadDateFilter.Today, config.SearchFilter.UploadDate);
+        Assert.Equal(SearchUploadDateFilter.All, config.SearchFilter.UploadDate);
     }
 
     [Fact]

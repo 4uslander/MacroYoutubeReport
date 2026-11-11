@@ -266,7 +266,7 @@ public sealed class ReportScenarioConfig
         SearchFilter = new SearchFilterConfig
         {
             LiveOnly = true,
-            UploadDate = SearchUploadDateFilter.Today,
+            UploadDate = SearchUploadDateFilter.All,
             ReSearchIfNotFound = true,
             CheckLaixiKeyboard = true,
             MaxScrollAttempts = 60

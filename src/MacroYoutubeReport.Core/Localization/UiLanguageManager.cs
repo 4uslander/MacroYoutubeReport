@@ -110,9 +110,9 @@ public static class UiLanguageManager
 
     private static readonly Dictionary<AppLanguage, string[]> SuccessConfirmationKeywords = new()
     {
-        [AppLanguage.Vietnamese] = ["Cảm ơn bạn đã báo cáo", "Đã gửi báo cáo", "Cảm ơn bạn đã phản hồi", "Báo cáo của bạn"],
-        [AppLanguage.English] = ["Thanks for reporting", "Report submitted", "Thank you for reporting", "We received your report"],
-        [AppLanguage.Korean] = ["신고해 주셔서 감사합니다", "신고가 접수되었습니다", "의견을 보내주셔서 감사합니다"]
+        [AppLanguage.Vietnamese] = ["Cảm ơn bạn đã báo cáo", "Đã gửi báo cáo", "Cảm ơn bạn đã phản hồi", "Báo cáo của bạn", "Cảm ơn"],
+        [AppLanguage.English] = ["Thanks for reporting", "Report submitted", "Thank you for reporting", "We received your report", "Thanks", "Thank you"],
+        [AppLanguage.Korean] = ["커뮤니티에 도움을 주셔서 감사합니다", "신고해 주셔서 감사합니다", "신고가 접수되었습니다", "의견을 보내주셔서 감사합니다", "감사합니다", "신고해 주신 내용"]
     };
 
     /// <summary>

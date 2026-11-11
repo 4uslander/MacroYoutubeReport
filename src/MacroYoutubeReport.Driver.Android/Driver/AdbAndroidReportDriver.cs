@@ -688,7 +688,7 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         var device = EnsureDevice();
 
         // 1. Thử bấm nút '추가 작업' (More actions) trên thanh nút cuộn ngang ngay dưới video trước
-        bool tappedMore = await LiveChatOverlayHelper.TapActionRowMoreButtonAsync(device, ct).ConfigureAwait(false);
+        bool tappedMore = await LiveChatOverlayHelper.TapActionRowMoreButtonAsync(device, _screenResolution.Width, _screenResolution.Height, ct).ConfigureAwait(false);
         if (!tappedMore)
         {
             // Nếu không có, chạm vào video player để đánh thức thanh điều khiển và bấm nút Cài đặt/3 chấm
@@ -726,12 +726,15 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                 }
             }
 
-            // Nếu trong menu có mục '추가 설정' (Additional settings), bấm vào để tìm Báo cáo bên trong
+            // Nếu trong menu có mục '추가 설정' / '고급 설정' (Additional/Advanced settings), bấm vào để tìm Báo cáo bên trong
             foreach (XmlNode node in menuNodes)
             {
                 string text = node.Attributes?["text"]?.Value ?? string.Empty;
                 string desc = node.Attributes?["content-desc"]?.Value ?? string.Empty;
-                if (text.Contains("추가 설정") || desc.Contains("추가 설정") || text.Contains("Additional settings") || text.Contains("Cài đặt bổ sung"))
+                if (text.Contains("추가 설정") || desc.Contains("추가 설정") || 
+                    text.Contains("고급 설정") || desc.Contains("고급 설정") ||
+                    text.Contains("기타") || desc.Contains("기타") ||
+                    text.Contains("Additional settings") || text.Contains("Cài đặt bổ sung"))
                 {
                     var elem = AdbUiXmlDumper.ParseElement(node);
                     if (elem != null)
@@ -778,9 +781,9 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         int midX = _screenResolution.Width / 2;
 
-        // 1. Chờ và kiểm tra hộp thoại báo cáo có mở không (tối đa 3 lần)
+        // 1. Chờ và kiểm tra hộp thoại báo cáo có mở không (tối đa 4 lần)
         XmlDocument? doc = null;
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < 4; i++)
         {
             doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             if (doc != null && doc.SelectSingleNode("//node[contains(@text, '신고') or contains(@content-desc, '신고') or contains(@text, 'Report') or contains(@content-desc, 'Report') or contains(@text, 'Báo cáo') or contains(@text, '어떤 문제인가요') or contains(@content-desc, '어떤 문제인가요')]") != null)
@@ -796,7 +799,7 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         var keywords = UiLanguageManager.GetAllKeywordsForCategory(reasonConfig.Category);
         bool categorySelected = false;
 
-        bool TryFindAndSelectReason(XmlDocument currentDoc)
+        async Task<bool> TryFindAndSelectReasonAsync(XmlDocument currentDoc)
         {
             var nodes = currentDoc.SelectNodes("//node[(@class='android.view.ViewGroup' or @class='android.widget.TextView' or @class='android.widget.RadioButton') and (@text!='' or @content-desc!='')]");
             if (nodes == null) return false;
@@ -812,9 +815,9 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                     if (combined.Contains(kw, StringComparison.OrdinalIgnoreCase))
                     {
                         var elem = AdbUiXmlDumper.ParseElement(node);
-                        if (elem != null && elem.Bounds.Y >= (_screenResolution.Height * 0.1) && elem.Bounds.Bottom <= (_screenResolution.Height * 0.92))
+                        if (elem != null && elem.CenterPoint.Y >= (_screenResolution.Height * 0.12) && elem.CenterPoint.Y <= (_screenResolution.Height * 0.88))
                         {
-                            AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).GetAwaiter().GetResult();
+                            await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
                             return true;
                         }
                     }
@@ -823,20 +826,36 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             return false;
         }
 
-        categorySelected = TryFindAndSelectReason(doc);
+        categorySelected = await TryFindAndSelectReasonAsync(doc).ConfigureAwait(false);
 
-        // Nếu chưa tìm thấy lý do, cuộn nhẹ hộp thoại xuống để hiển thị các lý do bên dưới (như Spam/Lừa đảo)
+        // Nếu chưa tìm thấy lý do (như Spam/Lừa đảo/Thù địch nằm phía dưới), cuộn nhẹ AN TOÀN bên trong thân danh sách
+        // Chú ý: Vuốt an toàn ở khoảng Y từ 60% lên 42% (350ms) để KHÔNG chạm mép header hay kích hoạt cử chỉ kéo tắt BottomSheet!
         if (!categorySelected)
         {
-            int scrollStartY = (int)(_screenResolution.Height * 0.70);
-            int scrollEndY = (int)(_screenResolution.Height * 0.35);
-            await AdbClientGeneral.Instance.SwipeAsync(device, midX, scrollStartY, midX, scrollEndY, 400, ct).ConfigureAwait(false);
+            int scrollStartY = (int)(_screenResolution.Height * 0.60);
+            int scrollEndY = (int)(_screenResolution.Height * 0.42);
+            await AdbClientGeneral.Instance.SwipeAsync(device, midX, scrollStartY, midX, scrollEndY, 350, ct).ConfigureAwait(false);
             await Task.Delay(1000, ct).ConfigureAwait(false);
 
             var scrolledDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             if (scrolledDoc != null)
             {
-                categorySelected = TryFindAndSelectReason(scrolledDoc);
+                categorySelected = await TryFindAndSelectReasonAsync(scrolledDoc).ConfigureAwait(false);
+            }
+        }
+
+        // Nếu vẫn chưa tìm thấy, cuộn nhẹ thêm 1 lần nữa ở biên độ hẹp
+        if (!categorySelected)
+        {
+            int scrollStartY = (int)(_screenResolution.Height * 0.58);
+            int scrollEndY = (int)(_screenResolution.Height * 0.40);
+            await AdbClientGeneral.Instance.SwipeAsync(device, midX, scrollStartY, midX, scrollEndY, 350, ct).ConfigureAwait(false);
+            await Task.Delay(1000, ct).ConfigureAwait(false);
+
+            var scrolledDoc2 = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (scrolledDoc2 != null)
+            {
+                categorySelected = await TryFindAndSelectReasonAsync(scrolledDoc2).ConfigureAwait(false);
             }
         }
 
@@ -1111,11 +1130,17 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
         if (wasChatOpen)
         {
             await LiveChatOverlayHelper.EnsureLiveChatClosedAsync(device, ct).ConfigureAwait(false);
-            await Task.Delay(1000, ct).ConfigureAwait(false);
+            await Task.Delay(1200, ct).ConfigureAwait(false);
         }
 
-        // 2. Thử mở menu Báo cáo dưới video trước
-        bool opened = await OpenReportMenuAsync(ct).ConfigureAwait(false);
+        // 2. Thử mở menu Báo cáo (ưu tiên thanh nút ngang dưới video, sau đó là icon bánh răng Player)
+        bool opened = false;
+        for (int tryOpen = 0; tryOpen < 2; tryOpen++)
+        {
+            opened = await OpenReportMenuAsync(ct).ConfigureAwait(false);
+            if (opened) break;
+            await Task.Delay(1000, ct).ConfigureAwait(false);
+        }
 
         // 3. Nếu không mở được dưới video, dùng phương thức chạm đánh thức Player Controls
         if (!opened)
@@ -1146,7 +1171,7 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             return false;
         }
 
-        // 4. Thực hiện nộp báo cáo (chọn Spam/Scam, chọn Gian lận/Lừa đảo, điền spin text)
+        // 4. Thực hiện nộp báo cáo (chọn lý do, điền nội dung giải trình chi tiết từ file cấu hình, gửi báo cáo)
         return await SubmitVideoReportAsync(reasonConfig, ct).ConfigureAwait(false);
     }
 
@@ -1250,8 +1275,11 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
     {
         var device = EnsureDevice();
         string safePrefix = Regex.Replace(stepPrefix ?? "Step", @"[^\w\.-]", "_");
-        string fileName = $"Android_{_serial}_{safePrefix}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.png";
-        string targetPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Screenshots", fileName);
+        string safeSerial = Regex.Replace(_serial ?? "Device", @"[^\w\.-]", "_");
+        string fileName = $"Android_{safeSerial}_{safePrefix}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.png";
+        string targetDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Screenshots");
+        Directory.CreateDirectory(targetDir);
+        string targetPath = Path.Combine(targetDir, fileName);
 
         return await AdbClientGeneral.Instance.CaptureScreenshotFileAsync(device, targetPath, ct).ConfigureAwait(false);
     }

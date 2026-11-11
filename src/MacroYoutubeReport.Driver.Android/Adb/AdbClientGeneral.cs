@@ -87,6 +87,51 @@ public sealed class AdbClientGeneral
         return true;
     }
 
+    /// <summary>
+    /// Đóng tất cả tab/ứng dụng trên thiết bị Android: buộc dừng các ứng dụng trọng tâm (YouTube, Chrome),
+    /// dọn dẹp tiến trình nền và giải phóng khay ứng dụng đa nhiệm (Recent Apps).
+    /// </summary>
+    public async Task<bool> CloseAllRecentAppsAsync(DeviceData device, CancellationToken ct = default)
+    {
+        try
+        {
+            // 1. Buộc dừng các ứng dụng chính
+            await ExecuteShellAsync(device, "am force-stop com.google.android.youtube", ct).ConfigureAwait(false);
+            await ExecuteShellAsync(device, "am force-stop com.android.chrome", ct).ConfigureAwait(false);
+            await ExecuteShellAsync(device, "am force-stop com.sec.android.app.sbrowser", ct).ConfigureAwait(false);
+            await ExecuteShellAsync(device, "am kill-all", ct).ConfigureAwait(false);
+
+            // 2. Mở khay đa nhiệm Recent Apps
+            await SendKeyEventAsync(device, 187, ct).ConfigureAwait(false); // KEYCODE_APP_SWITCH = 187
+            await Task.Delay(500, ct).ConfigureAwait(false);
+
+            // 3. Tìm và nhấn nút Đóng tất cả / Close all (hỗ trợ Samsung One UI, Xiaomi, Pixel, v.v.)
+            bool closedViaUi = false;
+            try
+            {
+                closedViaUi = await AdbUiXmlDumper.Instance.TapXPathAsync(device,
+                    "//node[(@text='Đóng tất cả' or @text='Close all' or @text='모두 닫기' or @content-desc='Đóng tất cả' or @content-desc='Close all' or contains(@resource-id, 'clear_all') or contains(@resource-id, 'clear_all_button')) and (@clickable='true' or @class='android.widget.Button' or @class='android.widget.TextView')]",
+                    ct, withJitter: false).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Bỏ qua nếu lỗi dump UI
+            }
+
+            if (!closedViaUi)
+            {
+                // Fallback: đưa về màn hình Home
+                await SendHomeAsync(device, ct).ConfigureAwait(false);
+            }
+            return true;
+        }
+        catch
+        {
+            await SendHomeAsync(device, ct).ConfigureAwait(false);
+            return false;
+        }
+    }
+
     public async Task<string> CaptureScreenshotFileAsync(DeviceData device, string targetFilePath, CancellationToken ct = default)
     {
         string dir = Path.GetDirectoryName(targetFilePath) ?? AppDomain.CurrentDomain.BaseDirectory;

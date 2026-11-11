@@ -104,6 +104,7 @@ public static class LiveChatOverlayHelper
 
     /// <summary>
     /// Chạm vào vùng video để đánh thức thanh điều khiển (Player Controls) và nhấn nút Cài đặt/3 chấm trên Player.
+    /// Có cơ chế retry tối đa 3 lần đề phòng điều khiển tắt nhanh hoặc độ trễ mạng.
     /// </summary>
     public static async Task<bool> AwakenPlayerControlsAndOpenSettingsAsync(
         DeviceData device,
@@ -111,66 +112,116 @@ public static class LiveChatOverlayHelper
         int screenHeight,
         CancellationToken ct = default)
     {
-        // 1. Chạm nhẹ vào giữa khung phát video (thường nằm ở nửa trên màn hình, Y ~ 18-22%)
-        int playerX = screenWidth / 2;
-        int playerY = (int)(screenHeight * 0.20);
-        await AdbClientGeneral.Instance.TapAsync(device, playerX, playerY, ct).ConfigureAwait(false);
-        await Task.Delay(600, ct).ConfigureAwait(false);
+        for (int retry = 0; retry < 3; retry++)
+        {
+            ct.ThrowIfCancellationRequested();
 
-        // 2. Dump UI để tìm nút Bánh răng (Settings) hoặc 3 chấm (Overflow) trên Video Player
+            // 1. Chạm nhẹ vào giữa khung phát video (nửa trên màn hình, Y ~ 18-22%) để đánh thức thanh điều khiển
+            int playerX = screenWidth / 2;
+            int playerY = (int)(screenHeight * 0.20);
+            await AdbClientGeneral.Instance.TapAsync(device, playerX, playerY, ct).ConfigureAwait(false);
+            await Task.Delay(400, ct).ConfigureAwait(false);
+
+            // 2. Dump UI để tìm nút Bánh răng (Settings) hoặc 3 chấm (Overflow) trên Video Player
+            var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (doc != null)
+            {
+                var btnNode = doc.SelectSingleNode(
+                    "//node[@resource-id='com.google.android.youtube:id/player_settings_button' or " +
+                    "@resource-id='com.google.android.youtube:id/player_overflow_button' or " +
+                    "@resource-id='com.google.android.youtube:id/overflow_button' or " +
+                    "contains(@content-desc, 'More options') or contains(@content-desc, 'Tùy chọn khác') or " +
+                    "contains(@content-desc, '설정') or contains(@content-desc, 'Cài đặt') or contains(@content-desc, '옵션 더보기') or contains(@content-desc, '옵션')]"
+                );
+
+                if (btnNode != null)
+                {
+                    var elem = AdbUiXmlDumper.ParseElement(btnNode);
+                    if (elem != null)
+                    {
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                        await Task.Delay(1000, ct).ConfigureAwait(false);
+                        return true;
+                    }
+                }
+            }
+
+            // Fallback: Chạm vào góc trên bên phải của video player
+            int cornerX = (int)(screenWidth * 0.93);
+            int cornerY = (int)(screenHeight * 0.08);
+            await AdbClientGeneral.Instance.TapAsync(device, cornerX, cornerY, ct).ConfigureAwait(false);
+            await Task.Delay(800, ct).ConfigureAwait(false);
+
+            // Kiểm tra xem menu bottom sheet hoặc popup có mở ra không
+            var verifyDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (verifyDoc != null && verifyDoc.SelectSingleNode("//node[contains(@text, '신고') or contains(@text, 'Báo cáo') or contains(@text, 'Report') or contains(@text, '품질') or contains(@text, '자막')]") != null)
+            {
+                return true;
+            }
+
+            await Task.Delay(500, ct).ConfigureAwait(false);
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Tìm và nhấn nút '추가 작업' (More actions / Tùy chọn khác) trên thanh hành động nằm ngay dưới video.
+    /// Nếu chưa hiển thị, thực hiện vuốt ngang thanh nút từ phải sang trái để làm lộ nút ở cuối thanh.
+    /// </summary>
+    public static async Task<bool> TapActionRowMoreButtonAsync(DeviceData device, int screenWidth = 0, int screenHeight = 0, CancellationToken ct = default)
+    {
+        // 1. Thử quét tìm ngay lần đầu
         var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
         if (doc != null)
         {
-            var btnNode = doc.SelectSingleNode(
-                "//node[@resource-id='com.google.android.youtube:id/player_settings_button' or " +
-                "@resource-id='com.google.android.youtube:id/player_overflow_button' or " +
-                "@resource-id='com.google.android.youtube:id/overflow_button' or " +
-                "contains(@content-desc, 'More options') or contains(@content-desc, 'Tùy chọn khác') or " +
-                "contains(@content-desc, '설정') or contains(@content-desc, 'Cài đặt') or contains(@content-desc, '옵션 더보기') or contains(@content-desc, '옵션')]"
+            var moreNode = doc.SelectSingleNode(
+                "//node[(@class='android.widget.Button' or @class='android.widget.ImageView' or @class='android.view.ViewGroup') and " +
+                "(@content-desc='추가 작업' or @content-desc='More actions' or @content-desc='Tùy chọn khác' or @content-desc='작업 메뉴' or " +
+                "contains(@content-desc, '추가 작업') or contains(@content-desc, 'More actions') or contains(@content-desc, 'Tùy chọn khác'))]"
             );
 
-            if (btnNode != null)
+            if (moreNode != null)
             {
-                var elem = AdbUiXmlDumper.ParseElement(btnNode);
+                var elem = AdbUiXmlDumper.ParseElement(moreNode);
                 if (elem != null)
                 {
                     await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
-                    await Task.Delay(800, ct).ConfigureAwait(false);
+                    await Task.Delay(1000, ct).ConfigureAwait(false);
                     return true;
                 }
             }
         }
 
-        // Fallback: Chạm vào góc trên bên phải của video player
-        int cornerX = (int)(screenWidth * 0.93);
-        int cornerY = (int)(screenHeight * 0.08);
-        await AdbClientGeneral.Instance.TapAsync(device, cornerX, cornerY, ct).ConfigureAwait(false);
-        await Task.Delay(800, ct).ConfigureAwait(false);
-        return true;
-    }
-
-    /// <summary>
-    /// Tìm và nhấn nút '추가 작업' (More actions / Tùy chọn khác) trên thanh hành động nằm ngay dưới video.
-    /// </summary>
-    public static async Task<bool> TapActionRowMoreButtonAsync(DeviceData device, CancellationToken ct = default)
-    {
-        var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
-        if (doc == null) return false;
-
-        var moreNode = doc.SelectSingleNode(
-            "//node[(@class='android.widget.Button' or @class='android.widget.ImageView' or @class='android.view.ViewGroup') and " +
-            "(@content-desc='추가 작업' or @content-desc='More actions' or @content-desc='Tùy chọn khác' or @content-desc='작업 메뉴' or " +
-            "contains(@content-desc, '추가 작업') or contains(@content-desc, 'More actions') or contains(@content-desc, 'Tùy chọn khác'))]"
-        );
-
-        if (moreNode != null)
+        // 2. Nếu chưa thấy và có thông số độ phân giải: vuốt ngang thanh Action Row (Y ~ 35%) từ phải sang trái
+        if (screenWidth > 0 && screenHeight > 0)
         {
-            var elem = AdbUiXmlDumper.ParseElement(moreNode);
-            if (elem != null)
+            int actionY = (int)(screenHeight * 0.35);
+            int startX = (int)(screenWidth * 0.85);
+            int endX = (int)(screenWidth * 0.18);
+
+            await AdbClientGeneral.Instance.SwipeAsync(device, startX, actionY, endX, actionY, 350, ct).ConfigureAwait(false);
+            await Task.Delay(800, ct).ConfigureAwait(false);
+
+            var scrolledDoc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
+            if (scrolledDoc != null)
             {
-                await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
-                await Task.Delay(1000, ct).ConfigureAwait(false);
-                return true;
+                var moreNode = scrolledDoc.SelectSingleNode(
+                    "//node[(@class='android.widget.Button' or @class='android.widget.ImageView' or @class='android.view.ViewGroup') and " +
+                    "(@content-desc='추가 작업' or @content-desc='More actions' or @content-desc='Tùy chọn khác' or @content-desc='작업 메뉴' or " +
+                    "contains(@content-desc, '추가 작업') or contains(@content-desc, 'More actions') or contains(@content-desc, 'Tùy chọn khác'))]"
+                );
+
+                if (moreNode != null)
+                {
+                    var elem = AdbUiXmlDumper.ParseElement(moreNode);
+                    if (elem != null)
+                    {
+                        await AdbUiXmlDumper.Instance.TapElementAsync(device, elem, ct).ConfigureAwait(false);
+                        await Task.Delay(1000, ct).ConfigureAwait(false);
+                        return true;
+                    }
+                }
             }
         }
 

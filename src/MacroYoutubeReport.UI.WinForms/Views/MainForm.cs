@@ -12,6 +12,18 @@ namespace MacroYoutubeReport.UI.WinForms.Views;
 public partial class MainForm : Form, IMainView
 {
     private readonly List<ReportTargetItem> _targets = new();
+    private readonly ContextMenuStrip _cmsTaskActions = new();
+
+    private int _minWatchSeconds = 35;
+    private int _maxWatchSeconds = 90;
+    private int _cooldownSeconds = 120;
+    private int _concurrency = 3;
+    private string _reasonFilePath = string.Empty;
+    private bool _autoSkipAd = true;
+    private bool _enableNaturalEngagement = true;
+    private bool _randomWatch = true;
+    private bool _rotateReasons = true;
+    private bool _autoAllocate = true;
 
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -21,8 +33,8 @@ public partial class MainForm : Form, IMainView
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
     public int ConcurrencyLimit
     {
-        get => (int)numConcurrency.Value;
-        set => numConcurrency.Value = Math.Clamp(value, numConcurrency.Minimum, numConcurrency.Maximum);
+        get => _concurrency;
+        set => _concurrency = Math.Clamp(value, 1, 32);
     }
 
     [Browsable(false)]
@@ -45,6 +57,7 @@ public partial class MainForm : Form, IMainView
     {
         InitializeComponent();
         WireEvents();
+        SwitchLanguage(AppLanguage.Korean);
     }
 
     private void WireEvents()
@@ -76,20 +89,32 @@ public partial class MainForm : Form, IMainView
 
         this.tsmiClearCache.Click += async (_, _) =>
         {
-            AppendLog("Đang gửi lệnh dọn bộ nhớ cache ứng dụng YouTube trên các thiết bị...", "INFO");
-            try
+            var serials = GetSelectedDeviceSerials();
+            if (serials.Count == 0)
             {
-                var devices = await AdbDeviceManager.Instance.ScanDevicesAsync();
-                foreach (var dev in devices)
+                AppendLog("Không tìm thấy thiết bị nào để dọn cache.", "WARN");
+                return;
+            }
+
+            AppendLog($"Đang gửi lệnh dọn bộ nhớ cache ứng dụng YouTube trên {serials.Count} thiết bị...", "INFO");
+            var tasks = serials.Select(async serial =>
+            {
+                try
                 {
-                    await AdbClientGeneral.Instance.ExecuteShellAsync(dev.RawDevice, "pm clear com.google.android.youtube");
-                    AppendLog($"Đã dọn cache YouTube trên thiết bị [{dev.Serial}]", "SUCCESS");
+                    var dev = await AdbDeviceManager.Instance.GetDeviceBySerialAsync(serial);
+                    if (dev != null && dev.RawDevice != null)
+                    {
+                        await AdbClientGeneral.Instance.ExecuteShellAsync(dev.RawDevice, "pm clear com.google.android.youtube");
+                        AppendLog($"Đã dọn cache YouTube trên thiết bị [{serial}]", "SUCCESS");
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                AppendLog($"Lỗi dọn cache: {ex.Message}", "WARN");
-            }
+                catch (Exception ex)
+                {
+                    AppendLog($"Thiết bị [{serial}] lỗi dọn cache: {ex.Message}", "WARN");
+                }
+            });
+
+            await Task.WhenAll(tasks);
         };
 
         this.tsmiRestartAdb.Click += async (_, _) =>
@@ -146,6 +171,7 @@ public partial class MainForm : Form, IMainView
         // 3. Start & Stop
         this.btnStart.Click += async (_, _) =>
         {
+            SyncTargetFromInputFields();
             if (StartBatchRequested != null) await StartBatchRequested.Invoke();
         };
 
@@ -169,6 +195,7 @@ public partial class MainForm : Form, IMainView
                 AppendLog($"Đã chọn file tài khoản Gmail: {Path.GetFileName(ofd.FileName)}", "INFO");
             }
         };
+        this.btnHelpMailFile.Click += (_, _) => ShowFileHelpDialog("account");
 
         this.btnSelectProxyFile.Click += (_, _) =>
         {
@@ -179,26 +206,45 @@ public partial class MainForm : Form, IMainView
                 AppendLog($"Đã chọn file Proxy: {Path.GetFileName(ofd.FileName)}", "INFO");
             }
         };
-
-        this.btnSelectReasonFile.Click += (_, _) =>
-        {
-            using var ofd = new OpenFileDialog
-            {
-                Filter = "Text File (*.txt)|*.txt|All Files (*.*)|*.*",
-                Title = "Chọn file nội dung lý do báo cáo"
-            };
-            if (ofd.ShowDialog() == DialogResult.OK)
-            {
-                txtReasonFile.Text = ofd.FileName;
-                AppendLog($"Đã chọn file nội dung lý do báo cáo: {Path.GetFileName(ofd.FileName)}", "INFO");
-            }
-        };
+        this.btnHelpProxyFile.Click += (_, _) => ShowFileHelpDialog("proxy");
+        this.btnHelpImportTargets.Click += (_, _) => ShowFileHelpDialog("target");
 
         string defReasonPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configs", "report_reasons.txt");
         if (File.Exists(defReasonPath))
         {
-            txtReasonFile.Text = defReasonPath;
+            _reasonFilePath = defReasonPath;
         }
+
+        this.btnOpenSettings.Click += (_, _) =>
+        {
+            using var dlg = new ReportSettingsDialog(
+                minWatch: _minWatchSeconds,
+                maxWatch: _maxWatchSeconds,
+                cooldown: _cooldownSeconds,
+                concurrency: _concurrency,
+                reasonFile: _reasonFilePath,
+                skipAd: _autoSkipAd,
+                naturalEngagement: _enableNaturalEngagement,
+                randomWatch: _randomWatch,
+                rotateReasons: _rotateReasons,
+                autoAllocate: _autoAllocate);
+
+            if (dlg.ShowDialog(this) == DialogResult.OK)
+            {
+                _minWatchSeconds = dlg.MinWatch;
+                _maxWatchSeconds = dlg.MaxWatch;
+                _cooldownSeconds = dlg.Cooldown;
+                _concurrency = dlg.Concurrency;
+                _reasonFilePath = dlg.ReasonFile;
+                _autoSkipAd = dlg.SkipAd;
+                _enableNaturalEngagement = dlg.NaturalEngagement;
+                _randomWatch = dlg.RandomWatch;
+                _rotateReasons = dlg.RotateReasons;
+                _autoAllocate = dlg.AutoAllocate;
+
+                AppendLog($"Đã cập nhật cài đặt: Xem {_minWatchSeconds}-{_maxWatchSeconds}s | Nghỉ {_cooldownSeconds}s | {_concurrency} luồng.", "SUCCESS");
+            }
+        };
 
         // 5. Target Input & Operations
         this.btnAddTarget.Click += (_, _) =>
@@ -258,7 +304,7 @@ public partial class MainForm : Form, IMainView
             }
         };
 
-        // 6. Action Column Clicks on Tasks Grid (Bắt đầu, Khởi động lại, Dừng, Xóa)
+        // 6. Action Column Clicks on Tasks Grid
         this.dgvTasks.CellContentClick += async (s, e) =>
         {
             if (e.RowIndex < 0 || e.RowIndex >= _targets.Count) return;
@@ -277,35 +323,9 @@ public partial class MainForm : Form, IMainView
                     await StartBatchRequested.Invoke();
                 }
             }
-            else if (colName == "COL_ACTION_RESTART")
+            else if (colName == "COL_ACTIONS")
             {
-                target.ReportsCompleted = 0;
-                RefreshTargetsGrid();
-                if (StartSingleTargetRequested != null)
-                {
-                    await StartSingleTargetRequested.Invoke(target);
-                }
-                else if (StartBatchRequested != null)
-                {
-                    await StartBatchRequested.Invoke();
-                }
-            }
-            else if (colName == "COL_ACTION_STOP")
-            {
-                AppendLog($"[Tác vụ #{e.RowIndex + 1}] Dừng mục tiêu: {target.VideoTitle ?? target.Keyword}", "WARN");
-                StopBatchRequested?.Invoke();
-            }
-            else if (colName == "COL_ACTION_DEL")
-            {
-                lock (_targets)
-                {
-                    if (e.RowIndex < _targets.Count)
-                    {
-                        _targets.RemoveAt(e.RowIndex);
-                    }
-                }
-                RefreshTargetsGrid();
-                AppendLog($"Đã xóa mục tiêu tại dòng #{e.RowIndex + 1}", "INFO");
+                ShowTaskActionsMenu(e.ColumnIndex, e.RowIndex);
             }
         };
 
@@ -363,34 +383,94 @@ public partial class MainForm : Form, IMainView
         // 8. Top Quick Actions
         this.btnActionHome.Click += async (_, _) =>
         {
-            if (RefreshHistoryRequested != null) await RefreshHistoryRequested.Invoke();
-            AppendLog("Đã làm mới dữ liệu màn hình chính.", "INFO");
+            var serials = GetSelectedDeviceSerials();
+            if (serials.Count == 0)
+            {
+                AppendLog("Không tìm thấy thiết bị nào khả dụng để gửi lệnh Home.", "WARN");
+                return;
+            }
+
+            AppendLog($"Đang gửi lệnh Home tới {serials.Count} thiết bị...", "INFO");
+
+            int successCount = 0;
+            var tasks = serials.Select(async serial =>
+            {
+                try
+                {
+                    var dev = await AdbDeviceManager.Instance.GetDeviceBySerialAsync(serial);
+                    if (dev != null && dev.RawDevice != null)
+                    {
+                        bool ok = await AdbClientGeneral.Instance.SendHomeAsync(dev.RawDevice);
+                        if (ok)
+                        {
+                            Interlocked.Increment(ref successCount);
+                            AppendLog($"Thiết bị [{serial}]: Đã ra màn hình Home thành công.", "SUCCESS");
+                        }
+                        else
+                        {
+                            AppendLog($"Thiết bị [{serial}]: Không thể gửi phím Home.", "WARN");
+                        }
+                    }
+                    else
+                    {
+                        AppendLog($"Thiết bị [{serial}]: Chưa sẵn sàng kết nối ADB.", "WARN");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"Thiết bị [{serial}] lỗi Home: {ex.Message}", "ERROR");
+                }
+            });
+
+            await Task.WhenAll(tasks);
+            AppendLog($"Hoàn tất: Đã đưa {successCount}/{serials.Count} thiết bị về màn hình Home.", successCount > 0 ? "SUCCESS" : "WARN");
         };
 
-        this.btnActionCloseAll.Click += (_, _) =>
+        this.btnActionCloseAll.Click += async (_, _) =>
         {
             StopBatchRequested?.Invoke();
-            AppendLog("Đã phát lệnh đóng tất cả tác vụ đang chạy.", "WARN");
-        };
 
-        this.btnActionFullScreen.Click += (_, _) =>
-        {
-            this.WindowState = this.WindowState == FormWindowState.Maximized ? FormWindowState.Normal : FormWindowState.Maximized;
-        };
+            var serials = GetSelectedDeviceSerials();
+            if (serials.Count == 0)
+            {
+                AppendLog("Không tìm thấy thiết bị nào khả dụng để đóng ứng dụng.", "WARN");
+                return;
+            }
 
-        this.btnActionCheckAccount.Click += (_, _) =>
-        {
-            AppendLog("Đang kiểm tra tính hợp lệ của tài khoản...", "INFO");
-        };
+            AppendLog($"Đang đóng tất cả ứng dụng/tab trên {serials.Count} thiết bị...", "INFO");
 
-        this.btnActionCheckYoutube.Click += (_, _) =>
-        {
-            AppendLog("Đang kiểm tra ứng dụng YouTube trên các thiết bị...", "INFO");
-        };
+            int successCount = 0;
+            var tasks = serials.Select(async serial =>
+            {
+                try
+                {
+                    var dev = await AdbDeviceManager.Instance.GetDeviceBySerialAsync(serial);
+                    if (dev != null && dev.RawDevice != null)
+                    {
+                        bool ok = await AdbClientGeneral.Instance.CloseAllRecentAppsAsync(dev.RawDevice);
+                        if (ok)
+                        {
+                            Interlocked.Increment(ref successCount);
+                            AppendLog($"Thiết bị [{serial}]: Đã đóng tất cả ứng dụng và tab thành công.", "SUCCESS");
+                        }
+                        else
+                        {
+                            AppendLog($"Thiết bị [{serial}]: Đóng ứng dụng gặp lỗi.", "WARN");
+                        }
+                    }
+                    else
+                    {
+                        AppendLog($"Thiết bị [{serial}]: Chưa sẵn sàng kết nối ADB.", "WARN");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"Thiết bị [{serial}] lỗi đóng ứng dụng: {ex.Message}", "ERROR");
+                }
+            });
 
-        this.btnActionReallocate.Click += (_, _) =>
-        {
-            AppendLog("Đang phân bổ lại tài khoản và proxy cho danh sách thiết bị...", "INFO");
+            await Task.WhenAll(tasks);
+            AppendLog($"Hoàn tất: Đã đóng tất cả ứng dụng trên {successCount}/{serials.Count} thiết bị.", successCount > 0 ? "SUCCESS" : "WARN");
         };
 
         this.btnActionResetCache.Click += (_, _) =>
@@ -417,13 +497,14 @@ public partial class MainForm : Form, IMainView
             }
         };
 
-        this.btnActionClearCompleted.Click += (_, _) =>
+        this.btnActionClearCompleted.Click += async (_, _) =>
         {
             lock (_targets)
             {
                 _targets.RemoveAll(t => t.ReportsCompleted >= t.MaxReportsRequired);
             }
             RefreshTargetsGrid();
+            if (RefreshHistoryRequested != null) await RefreshHistoryRequested.Invoke();
             AppendLog("Đã dọn dẹp các tác vụ hoàn thành khỏi danh sách.", "INFO");
         };
 
@@ -520,6 +601,63 @@ public partial class MainForm : Form, IMainView
         this.cmbFilterType.SelectedIndexChanged += (_, _) => ApplyTaskFilter();
     }
 
+    private void ShowTaskActionsMenu(int colIndex, int rowIndex)
+    {
+        if (rowIndex < 0 || rowIndex >= _targets.Count) return;
+
+        var target = _targets[rowIndex];
+        var lang = UiLanguageManager.CurrentLanguage;
+
+        _cmsTaskActions.Items.Clear();
+
+        var itemRestart = new ToolStripMenuItem(
+            UiLanguageManager.Translate("Khởi động lại", lang),
+            null,
+            async (_, _) =>
+            {
+                target.ReportsCompleted = 0;
+                RefreshTargetsGrid();
+                if (StartSingleTargetRequested != null)
+                {
+                    await StartSingleTargetRequested.Invoke(target);
+                }
+                else if (StartBatchRequested != null)
+                {
+                    await StartBatchRequested.Invoke();
+                }
+            });
+
+        var itemStop = new ToolStripMenuItem(
+            UiLanguageManager.Translate("Dừng", lang),
+            null,
+            (_, _) =>
+            {
+                AppendLog($"[Tác vụ #{rowIndex + 1}] Dừng mục tiêu: {target.VideoTitle ?? target.Keyword}", "WARN");
+                StopBatchRequested?.Invoke();
+            });
+
+        var itemDel = new ToolStripMenuItem(
+            UiLanguageManager.Translate("Xóa", lang),
+            null,
+            (_, _) =>
+            {
+                lock (_targets)
+                {
+                    if (rowIndex < _targets.Count)
+                    {
+                        _targets.RemoveAt(rowIndex);
+                    }
+                }
+                RefreshTargetsGrid();
+                AppendLog($"Đã xóa mục tiêu tại dòng #{rowIndex + 1}", "INFO");
+            });
+
+        _cmsTaskActions.Items.AddRange(new ToolStripItem[] { itemRestart, itemStop, new ToolStripSeparator(), itemDel });
+
+        var rect = dgvTasks.GetCellDisplayRectangle(colIndex, rowIndex, true);
+        _cmsTaskActions.Show(dgvTasks, new Point(rect.Left, rect.Bottom));
+    }
+
     private void SwitchLanguage(AppLanguage lang)
     {
         UiLanguageManager.CurrentLanguage = lang;
@@ -534,6 +672,17 @@ public partial class MainForm : Form, IMainView
         {
             if (col.Tag == null) col.Tag = col.HeaderText;
             col.HeaderText = UiLanguageManager.Translate((string)col.Tag, lang);
+            if (col is DataGridViewButtonColumn btnCol)
+            {
+                if (btnCol.Name == "COL_ACTION_START")
+                {
+                    btnCol.Text = UiLanguageManager.Translate("Bắt đầu", lang);
+                }
+                else if (btnCol.Name == "COL_ACTIONS")
+                {
+                    btnCol.Text = UiLanguageManager.Translate("Thao tác ▾", lang);
+                }
+            }
         }
 
         foreach (DataGridViewColumn col in dgvDevices.Columns)
@@ -545,6 +694,11 @@ public partial class MainForm : Form, IMainView
         // Localize Menu
         LocalizeToolStrip(menuStripMain, lang);
 
+        LocalizeTargetTypeComboBox(lang);
+        UpdateFileHelpTooltips();
+
+        RefreshTargetsGrid();
+
         string langName = lang switch
         {
             AppLanguage.Korean => "한국어",
@@ -552,6 +706,47 @@ public partial class MainForm : Form, IMainView
             _ => "Tiếng Việt"
         };
         AppendLog($"Đã chuyển ngôn ngữ sang: {langName}", "INFO");
+    }
+
+    private void LocalizeTargetTypeComboBox(AppLanguage lang)
+    {
+        int prevIdx = cmbTargetType.SelectedIndex;
+        if (prevIdx < 0) prevIdx = 3; // Mặc định là LiveStream
+
+        cmbTargetType.Items.Clear();
+        if (lang == AppLanguage.Korean)
+        {
+            cmbTargetType.Items.AddRange(new object[] { "동영상 (Video)", "채널 (Channel)", "Shorts", "라이브 (LiveStream)" });
+        }
+        else if (lang == AppLanguage.English)
+        {
+            cmbTargetType.Items.AddRange(new object[] { "Video", "Channel", "Shorts", "LiveStream" });
+        }
+        else
+        {
+            cmbTargetType.Items.AddRange(new object[] { "Video", "Kênh (Channel)", "Shorts", "LiveStream (Trực tiếp)" });
+        }
+
+        cmbTargetType.SelectedIndex = Math.Clamp(prevIdx, 0, cmbTargetType.Items.Count - 1);
+    }
+
+    private void UpdateFileHelpTooltips()
+    {
+        var lang = UiLanguageManager.CurrentLanguage;
+        var accHelp = UiLanguageManager.GetFileFormatHelp("account", lang);
+        var proxyHelp = UiLanguageManager.GetFileFormatHelp("proxy", lang);
+        var targetHelp = UiLanguageManager.GetFileFormatHelp("target", lang);
+
+        toolTipHelp.SetToolTip(btnHelpMailFile, accHelp.Tooltip);
+        toolTipHelp.SetToolTip(btnHelpProxyFile, proxyHelp.Tooltip);
+        toolTipHelp.SetToolTip(btnHelpImportTargets, targetHelp.Tooltip);
+    }
+
+    private void ShowFileHelpDialog(string fileType)
+    {
+        var lang = UiLanguageManager.CurrentLanguage;
+        var help = UiLanguageManager.GetFileFormatHelp(fileType, lang);
+        MessageBox.Show(this, help.DialogContent, help.DialogTitle, MessageBoxButtons.OK, MessageBoxIcon.Information);
     }
 
     private void ApplyLocalization(Control parent, AppLanguage lang)
@@ -651,8 +846,53 @@ public partial class MainForm : Form, IMainView
         }
     }
 
+    /// <summary>
+    /// Tự động đồng bộ thông tin mục tiêu từ các ô nhập liệu trên giao diện vào danh sách mục tiêu.
+    /// Giúp người dùng chỉ cần nhập cài đặt và bấm trực tiếp nút 'Bắt đầu' mà không cần bấm thêm/xóa thủ công.
+    /// </summary>
+    private void SyncTargetFromInputFields()
+    {
+        string kw = txtKeyword.Text.Trim();
+        string title = txtTitle.Text.Trim();
+        string url = txtUrl.Text.Trim();
+        string channel = txtChannel.Text.Trim();
+
+        if (!string.IsNullOrWhiteSpace(kw) || !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(url))
+        {
+            var targetType = cmbTargetType.SelectedIndex switch
+            {
+                1 => ReportTargetType.Channel,
+                2 => ReportTargetType.Shorts,
+                3 => ReportTargetType.LiveStream,
+                _ => ReportTargetType.Video
+            };
+
+            var item = new ReportTargetItem
+            {
+                TargetType = targetType,
+                Keyword = kw,
+                VideoTitle = string.IsNullOrWhiteSpace(title) ? null : title,
+                ChannelName = string.IsNullOrWhiteSpace(channel) ? null : channel,
+                TargetUrl = string.IsNullOrWhiteSpace(url) ? null : url,
+                MaxReportsRequired = 1
+            };
+
+            lock (_targets)
+            {
+                // Nếu danh sách chưa có mục tiêu nào, hoặc chỉ có 1 mục tiêu đơn (đang cấu hình trực tiếp trên form)
+                if (_targets.Count <= 1)
+                {
+                    _targets.Clear();
+                    _targets.Add(item);
+                }
+            }
+            RefreshTargetsGrid();
+        }
+    }
+
     public IReadOnlyList<ReportTargetItem> GetTargetItems()
     {
+        SyncTargetFromInputFields();
         lock (_targets)
         {
             return _targets.ToList();
@@ -715,17 +955,21 @@ public partial class MainForm : Form, IMainView
         lock (_targets)
         {
             int devCount = dgvDevices.Rows.Count > 0 ? dgvDevices.Rows.Count : 1;
+            var lang = UiLanguageManager.CurrentLanguage;
+            string btnStartText = UiLanguageManager.Translate("Bắt đầu", lang);
+            string btnActionText = UiLanguageManager.Translate("Thao tác ▾", lang);
+            string completedText = UiLanguageManager.Translate("Hoàn thành", lang);
+            string pendingText = UiLanguageManager.Translate("Chờ xử lý", lang);
+
             foreach (var t in _targets)
             {
-                string interval = $"{numMinWatch.Value}-{numMaxWatch.Value}s";
+                string interval = $"{_minWatchSeconds}-{_maxWatchSeconds}s";
                 string progress = $"{t.ReportsCompleted}/{t.MaxReportsRequired}";
-                string status = t.ReportsCompleted >= t.MaxReportsRequired ? "Hoàn thành" : "Chờ xử lý";
+                string status = t.ReportsCompleted >= t.MaxReportsRequired ? completedText : pendingText;
                 bool isLive = t.TargetType == ReportTargetType.LiveStream;
                 dgvTasks.Rows.Add(
-                    "Bắt đầu",
-                    "Khởi động lại",
-                    "Dừng",
-                    "Xóa",
+                    btnStartText,
+                    btnActionText,
                     devCount.ToString(),
                     t.Keyword,
                     t.ChannelName ?? string.Empty,
@@ -779,53 +1023,16 @@ public partial class MainForm : Form, IMainView
             CommonsOnly = chkSearchFilterCommons.Checked,
             SubtitlesOnly = chkSearchFilterSubtitles.Checked,
             FourKOnly = chkSearchFilter4K.Checked,
-            RandomWatch = chkSearchFilterRandomWatch.Checked,
-            DirectUrlMode = chkSearchFilterDirectUrl.Checked,
-            AutoAllocateEmail = chkSearchFilterAutoEmail.Checked,
-            ReSearchIfNotFound = chkSearchFilterRetrySearch.Checked,
-            CheckLaixiKeyboard = chkSearchFilterLaixiKeyboard.Checked,
             MaxScrollAttempts = 50
         };
     }
 
     public ReportScenarioConfig GetScenarioConfig()
     {
-        string reasonFilePath = txtReasonFile.Text.Trim();
+        string reasonFilePath = _reasonFilePath.Trim();
         string defaultPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Configs", "report_reasons.txt");
         string fileToLoad = File.Exists(reasonFilePath) ? reasonFilePath : (File.Exists(defaultPath) ? defaultPath : string.Empty);
         var searchFilter = GetSearchFilterConfigFromUi();
-
-        if (cmbScenario.SelectedIndex == 5 || (cmbScenario.SelectedItem?.ToString()?.Contains("Livestream") == true))
-        {
-            var liveConfig = ReportScenarioConfig.CreateLiveStreamFinancialScamConfig();
-            liveConfig.MinWatchDurationSeconds = (int)numMinWatch.Value;
-            liveConfig.MaxWatchDurationSeconds = (int)numMaxWatch.Value;
-            liveConfig.CooldownBetweenReportsSeconds = (int)numCooldown.Value;
-            liveConfig.EnableNaturalEngagement = chkNaturalEngagement.Checked;
-            liveConfig.RotateReasons = chkRotateReasons.Checked;
-            liveConfig.SearchFilter = searchFilter;
-            if (!string.IsNullOrWhiteSpace(fileToLoad))
-            {
-                liveConfig.LoadReasonTemplatesFromFile(fileToLoad);
-            }
-            return liveConfig;
-        }
-
-        var config = new ReportScenarioConfig
-        {
-            ScenarioName = cmbScenario.SelectedItem?.ToString() ?? "Kịch bản mặc định",
-            MinWatchDurationSeconds = (int)numMinWatch.Value,
-            MaxWatchDurationSeconds = (int)numMaxWatch.Value,
-            CooldownBetweenReportsSeconds = (int)numCooldown.Value,
-            EnableNaturalEngagement = chkNaturalEngagement.Checked,
-            RotateReasons = chkRotateReasons.Checked,
-            SearchFilter = searchFilter
-        };
-
-        if (!string.IsNullOrWhiteSpace(fileToLoad))
-        {
-            config.LoadReasonTemplatesFromFile(fileToLoad);
-        }
 
         var selectedReason = cmbMainReason.SelectedIndex switch
         {
@@ -843,11 +1050,39 @@ public partial class MainForm : Form, IMainView
             _ => ReportReasonCategory.FinancialOrCryptoScam
         };
 
-        if (chkRotateReasons.Checked)
+        ReportScenarioConfig config;
+        if (cmbScenario.SelectedIndex == 5 || (cmbScenario.SelectedItem?.ToString()?.Contains("Livestream") == true))
+        {
+            config = ReportScenarioConfig.CreateLiveStreamFinancialScamConfig();
+        }
+        else
+        {
+            config = new ReportScenarioConfig
+            {
+                ScenarioName = cmbScenario.SelectedItem?.ToString() ?? "Kịch bản mặc định"
+            };
+        }
+
+        config.MinWatchDurationSeconds = _minWatchSeconds;
+        config.MaxWatchDurationSeconds = _maxWatchSeconds;
+        config.CooldownBetweenReportsSeconds = _cooldownSeconds;
+        config.EnableNaturalEngagement = _enableNaturalEngagement;
+        config.RotateReasons = _rotateReasons;
+        config.SearchFilter = searchFilter;
+
+        if (!string.IsNullOrWhiteSpace(fileToLoad))
+        {
+            config.LoadReasonTemplatesFromFile(fileToLoad);
+        }
+
+        // QUAN TRỌNG: Thiết lập danh mục lý do báo cáo theo đúng lựa chọn tại ComboBox Tiêu chí báo cáo (cmbMainReason)
+        // Nếu người dùng chọn lý do cụ thể (như Lừa đảo tài chính), hệ thống PHẢI dùng đúng lý do đó,
+        // và xoay vòng nội dung giải trình chi tiết trong file cấu hình cho chính danh mục đó.
+        // Chỉ khi người dùng chọn chế độ "Tất cả danh mục (Xoay vòng ngẫu nhiên)" thì mới xoay vòng nhiều danh mục khác nhau.
+        if (cmbMainReason.SelectedIndex == 11)
         {
             config.ReasonPool = new List<ReportReasonConfig>
             {
-                new(selectedReason),
                 new(ReportReasonCategory.FinancialOrCryptoScam),
                 new(ReportReasonCategory.SpamOrMisleading),
                 new(ReportReasonCategory.Misinformation),
@@ -856,10 +1091,13 @@ public partial class MainForm : Form, IMainView
                 new(ReportReasonCategory.HarassmentOrBullying),
                 new(ReportReasonCategory.ViolentOrRepulsive)
             };
+            config.RotateReasons = true;
         }
         else
         {
+            // Tôn trọng 100% lựa chọn tiêu chí của người dùng tại cmbMainReason
             config.ReasonPool = new List<ReportReasonConfig> { new(selectedReason) };
+            config.RotateReasons = _rotateReasons;
         }
 
         return config;
@@ -873,11 +1111,35 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
-        numMinWatch.Value = Math.Clamp(config.MinWatchDurationSeconds, numMinWatch.Minimum, numMinWatch.Maximum);
-        numMaxWatch.Value = Math.Clamp(config.MaxWatchDurationSeconds, numMaxWatch.Minimum, numMaxWatch.Maximum);
-        numCooldown.Value = Math.Clamp(config.CooldownBetweenReportsSeconds, numCooldown.Minimum, numCooldown.Maximum);
-        chkNaturalEngagement.Checked = config.EnableNaturalEngagement;
-        chkRotateReasons.Checked = config.RotateReasons;
+        _minWatchSeconds = Math.Clamp(config.MinWatchDurationSeconds, 5, 1800);
+        _maxWatchSeconds = Math.Clamp(config.MaxWatchDurationSeconds, 5, 1800);
+        _cooldownSeconds = Math.Clamp(config.CooldownBetweenReportsSeconds, 0, 3600);
+        _enableNaturalEngagement = config.EnableNaturalEngagement;
+        _rotateReasons = config.RotateReasons;
+
+        if (config.ReasonPool.Count > 0)
+        {
+            var cat = config.ReasonPool[0].Category;
+            int reasonIdx = cat switch
+            {
+                ReportReasonCategory.FinancialOrCryptoScam => 0,
+                ReportReasonCategory.SpamOrMisleading => 1,
+                ReportReasonCategory.HarmfulDangerousActs => 2,
+                ReportReasonCategory.Misinformation => 3,
+                ReportReasonCategory.HatefulOrAbusive => 4,
+                ReportReasonCategory.HarassmentOrBullying => 5,
+                ReportReasonCategory.ViolentOrRepulsive => 6,
+                ReportReasonCategory.SexualContent => 7,
+                ReportReasonCategory.ChildAbuse => 8,
+                ReportReasonCategory.PromotesTerrorism => 9,
+                ReportReasonCategory.InfringesMyRights => 10,
+                _ => 0
+            };
+            if (reasonIdx >= 0 && reasonIdx < cmbMainReason.Items.Count)
+            {
+                cmbMainReason.SelectedIndex = reasonIdx;
+            }
+        }
 
         if (config.SearchFilter != null)
         {
@@ -889,11 +1151,6 @@ public partial class MainForm : Form, IMainView
             chkSearchFilterCommons.Checked = config.SearchFilter.CommonsOnly;
             chkSearchFilterSubtitles.Checked = config.SearchFilter.SubtitlesOnly;
             chkSearchFilter4K.Checked = config.SearchFilter.FourKOnly;
-            chkSearchFilterRandomWatch.Checked = config.SearchFilter.RandomWatch;
-            chkSearchFilterDirectUrl.Checked = config.SearchFilter.DirectUrlMode;
-            chkSearchFilterAutoEmail.Checked = config.SearchFilter.AutoAllocateEmail;
-            chkSearchFilterRetrySearch.Checked = config.SearchFilter.ReSearchIfNotFound;
-            chkSearchFilterLaixiKeyboard.Checked = config.SearchFilter.CheckLaixiKeyboard;
         }
     }
 
@@ -1073,6 +1330,8 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
+        string translated = UiLanguageManager.TranslateLog(message, UiLanguageManager.CurrentLanguage);
+
         Color color = level switch
         {
             "SUCCESS" => Color.FromArgb(25, 135, 84), // Emerald green
@@ -1087,7 +1346,7 @@ public partial class MainForm : Form, IMainView
         rtbLiveLog.AppendText($"[{DateTime.Now:HH:mm:ss}] ");
 
         rtbLiveLog.SelectionColor = color;
-        rtbLiveLog.AppendText($"[{level}] {message}\r\n");
+        rtbLiveLog.AppendText($"[{level}] {translated}\r\n");
         rtbLiveLog.ScrollToCaret();
     }
 
@@ -1103,7 +1362,7 @@ public partial class MainForm : Form, IMainView
         btnStop.Enabled = isRunning;
         rdoAndroid.Enabled = !isRunning;
         rdoChrome.Enabled = !isRunning;
-        numConcurrency.Enabled = !isRunning;
+        btnOpenSettings.Enabled = !isRunning;
     }
 
     public void ShowNotification(string message, bool isError = false)

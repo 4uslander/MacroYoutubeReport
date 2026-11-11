@@ -30,8 +30,10 @@ partial class MainForm
     private RadioButton rdoChrome;
     private TextBox txtMailFile;
     private Button btnSelectMailFile;
+    private HelpBadge btnHelpMailFile;
     private TextBox txtProxyFile;
     private Button btnSelectProxyFile;
+    private HelpBadge btnHelpProxyFile;
 
     private GroupBox gbTargetInput;
     private Label lblTargetType;
@@ -46,7 +48,10 @@ partial class MainForm
     private TextBox txtUrl;
     private Button btnAddTarget;
     private Button btnImportTargets;
+    private HelpBadge btnHelpImportTargets;
     private Button btnRemoveTarget;
+
+    private ToolTip toolTipHelp;
 
     // Search Filter Group (AutoYouTube Style)
     private GroupBox gbSearchFilter;
@@ -62,34 +67,13 @@ partial class MainForm
     private CheckBox chkSearchFilterCommons;
     private CheckBox chkSearchFilterSubtitles;
     private CheckBox chkSearchFilter4K;
-    private Panel pnlFilterExtraOptions;
-    private CheckBox chkSearchFilterRandomWatch;
-    private CheckBox chkSearchFilterDirectUrl;
-    private CheckBox chkSearchFilterAutoEmail;
-    private CheckBox chkSearchFilterRetrySearch;
-    private CheckBox chkSearchFilterLaixiKeyboard;
 
     private GroupBox gbReportSettings;
     private Label lblScenario;
     private ComboBox cmbScenario;
     private Label lblMainReason;
     private ComboBox cmbMainReason;
-    private Label lblReasonFile;
-    private TextBox txtReasonFile;
-    private Button btnSelectReasonFile;
-    private Label lblWatchDuration;
-    private NumericUpDown numMinWatch;
-    private Label lblTo;
-    private NumericUpDown numMaxWatch;
-    private Label lblCooldown;
-    private NumericUpDown numCooldown;
-    private Label lblConcurrency;
-    private NumericUpDown numConcurrency;
-    private CheckBox chkAutoSkipAd;
-    private CheckBox chkNaturalEngagement;
-    private CheckBox chkRandomWatch;
-    private CheckBox chkRotateReasons;
-    private CheckBox chkAutoAllocate;
+    private Button btnOpenSettings;
 
     private Panel pnlLeftBottomButtons;
     private Button btnConnectDevices;
@@ -104,10 +88,6 @@ partial class MainForm
     private Panel pnlTopActions;
     private Button btnActionHome;
     private Button btnActionCloseAll;
-    private Button btnActionFullScreen;
-    private Button btnActionCheckAccount;
-    private Button btnActionCheckYoutube;
-    private Button btnActionReallocate;
     private Button btnActionResetCache;
     private Button btnActionScanTcp;
     private Button btnActionExportCsv;
@@ -177,8 +157,10 @@ partial class MainForm
         this.rdoChrome = new RadioButton();
         this.txtMailFile = new TextBox();
         this.btnSelectMailFile = new Button();
+        this.btnHelpMailFile = new HelpBadge();
         this.txtProxyFile = new TextBox();
         this.btnSelectProxyFile = new Button();
+        this.btnHelpProxyFile = new HelpBadge();
 
         this.gbTargetInput = new GroupBox();
         this.lblTargetType = new Label();
@@ -193,7 +175,10 @@ partial class MainForm
         this.txtUrl = new TextBox();
         this.btnAddTarget = new Button();
         this.btnImportTargets = new Button();
+        this.btnHelpImportTargets = new HelpBadge();
         this.btnRemoveTarget = new Button();
+
+        this.toolTipHelp = new ToolTip();
 
         this.gbSearchFilter = new GroupBox();
         this.lblSearchFilterType = new Label();
@@ -208,34 +193,13 @@ partial class MainForm
         this.chkSearchFilterCommons = new CheckBox();
         this.chkSearchFilterSubtitles = new CheckBox();
         this.chkSearchFilter4K = new CheckBox();
-        this.pnlFilterExtraOptions = new Panel();
-        this.chkSearchFilterRandomWatch = new CheckBox();
-        this.chkSearchFilterDirectUrl = new CheckBox();
-        this.chkSearchFilterAutoEmail = new CheckBox();
-        this.chkSearchFilterRetrySearch = new CheckBox();
-        this.chkSearchFilterLaixiKeyboard = new CheckBox();
 
         this.gbReportSettings = new GroupBox();
         this.lblScenario = new Label();
         this.cmbScenario = new ComboBox();
         this.lblMainReason = new Label();
         this.cmbMainReason = new ComboBox();
-        this.lblReasonFile = new Label();
-        this.txtReasonFile = new TextBox();
-        this.btnSelectReasonFile = new Button();
-        this.lblWatchDuration = new Label();
-        this.numMinWatch = new NumericUpDown();
-        this.lblTo = new Label();
-        this.numMaxWatch = new NumericUpDown();
-        this.lblCooldown = new Label();
-        this.numCooldown = new NumericUpDown();
-        this.lblConcurrency = new Label();
-        this.numConcurrency = new NumericUpDown();
-        this.chkAutoSkipAd = new CheckBox();
-        this.chkNaturalEngagement = new CheckBox();
-        this.chkRandomWatch = new CheckBox();
-        this.chkRotateReasons = new CheckBox();
-        this.chkAutoAllocate = new CheckBox();
+        this.btnOpenSettings = new Button();
 
         this.pnlLeftBottomButtons = new Panel();
         this.btnConnectDevices = new Button();
@@ -247,10 +211,6 @@ partial class MainForm
         this.pnlTopActions = new Panel();
         this.btnActionHome = new Button();
         this.btnActionCloseAll = new Button();
-        this.btnActionFullScreen = new Button();
-        this.btnActionCheckAccount = new Button();
-        this.btnActionCheckYoutube = new Button();
-        this.btnActionReallocate = new Button();
         this.btnActionResetCache = new Button();
         this.btnActionScanTcp = new Button();
         this.btnActionExportCsv = new Button();
@@ -343,23 +303,30 @@ partial class MainForm
         this.rdoChrome.Size = new Size(160, 20);
 
         this.txtMailFile.Location = new Point(10, 52);
-        this.txtMailFile.Size = new Size(225, 23);
+        this.txtMailFile.Size = new Size(215, 23);
         this.txtMailFile.PlaceholderText = "Chọn file account.txt...";
 
         this.btnSelectMailFile.Text = "Chọn";
-        this.btnSelectMailFile.Location = new Point(240, 51);
-        this.btnSelectMailFile.Size = new Size(65, 25);
+        this.btnSelectMailFile.Location = new Point(230, 50);
+        this.btnSelectMailFile.Size = new Size(60, 26);
+
+        this.btnHelpMailFile.Location = new Point(294, 54);
+        this.btnHelpMailFile.Size = new Size(18, 18);
 
         this.txtProxyFile.Location = new Point(10, 84);
-        this.txtProxyFile.Size = new Size(225, 23);
+        this.txtProxyFile.Size = new Size(215, 23);
         this.txtProxyFile.PlaceholderText = "Chọn file proxy.txt...";
 
         this.btnSelectProxyFile.Text = "Chọn";
-        this.btnSelectProxyFile.Location = new Point(240, 83);
-        this.btnSelectProxyFile.Size = new Size(65, 25);
+        this.btnSelectProxyFile.Location = new Point(230, 82);
+        this.btnSelectProxyFile.Size = new Size(60, 26);
+
+        this.btnHelpProxyFile.Location = new Point(294, 86);
+        this.btnHelpProxyFile.Size = new Size(18, 18);
 
         this.gbPlatformAndAuth.Controls.AddRange(new Control[] {
-            this.rdoAndroid, this.rdoChrome, this.txtMailFile, this.btnSelectMailFile, this.txtProxyFile, this.btnSelectProxyFile
+            this.rdoAndroid, this.rdoChrome, this.txtMailFile, this.btnSelectMailFile, this.btnHelpMailFile,
+            this.txtProxyFile, this.btnSelectProxyFile, this.btnHelpProxyFile
         });
 
         // Group 2: Target Input
@@ -375,7 +342,7 @@ partial class MainForm
         this.cmbTargetType.Size = new Size(225, 23);
         this.cmbTargetType.DropDownStyle = ComboBoxStyle.DropDownList;
         this.cmbTargetType.Items.AddRange(new object[] { "Video", "Kênh (Channel)", "Shorts", "LiveStream (Trực tiếp)" });
-        this.cmbTargetType.SelectedIndex = 0;
+        this.cmbTargetType.SelectedIndex = 3; // Mặc định là LiveStream
 
         this.lblKeyword.Text = "Từ khóa:";
         this.lblKeyword.Location = new Point(10, 55);
@@ -401,131 +368,93 @@ partial class MainForm
         this.txtUrl.Location = new Point(80, 142);
         this.txtUrl.Size = new Size(225, 23);
 
-        this.btnAddTarget.Text = "+ Thêm";
-        this.btnAddTarget.Location = new Point(10, 175);
-        this.btnAddTarget.Size = new Size(88, 30);
+        this.btnImportTargets.Text = "Nhập danh sách mục tiêu từ file (Tùy chọn)";
+        this.btnImportTargets.Location = new Point(10, 175);
+        this.btnImportTargets.Size = new Size(274, 30);
 
-        this.btnImportTargets.Text = "Nhập file";
-        this.btnImportTargets.Location = new Point(105, 175);
-        this.btnImportTargets.Size = new Size(100, 30);
-
-        this.btnRemoveTarget.Text = "Xóa";
-        this.btnRemoveTarget.Location = new Point(212, 175);
-        this.btnRemoveTarget.Size = new Size(93, 30);
+        this.btnHelpImportTargets.Location = new Point(290, 181);
+        this.btnHelpImportTargets.Size = new Size(18, 18);
 
         this.gbTargetInput.Controls.AddRange(new Control[] {
             this.lblTargetType, this.cmbTargetType, this.lblKeyword, this.txtKeyword,
             this.lblChannel, this.txtChannel, this.lblTitle, this.txtTitle, this.lblUrl, this.txtUrl,
-            this.btnAddTarget, this.btnImportTargets, this.btnRemoveTarget
+            this.btnImportTargets, this.btnHelpImportTargets
         });
 
         // Group 2.5: Search Filter (AutoYouTube Style)
         this.gbSearchFilter.Text = "Bộ lọc tìm kiếm";
         this.gbSearchFilter.Location = new Point(6, 358);
-        this.gbSearchFilter.Size = new Size(316, 202);
+        this.gbSearchFilter.Size = new Size(316, 138);
 
         this.lblSearchFilterType.Text = "Phân loại";
         this.lblSearchFilterType.Location = new Point(10, 24);
         this.lblSearchFilterType.AutoSize = true;
 
-        this.cmbSearchFilterType.Location = new Point(70, 21);
-        this.cmbSearchFilterType.Size = new Size(82, 23);
+        this.cmbSearchFilterType.Location = new Point(68, 21);
+        this.cmbSearchFilterType.Size = new Size(88, 23);
         this.cmbSearchFilterType.DropDownStyle = ComboBoxStyle.DropDownList;
         this.cmbSearchFilterType.Items.AddRange(new object[] { "Không dùng", "Video", "Kênh", "Danh sách phát", "Phim" });
         this.cmbSearchFilterType.SelectedIndex = 0;
 
         this.lblSearchFilterDuration.Text = "Độ dài";
-        this.lblSearchFilterDuration.Location = new Point(156, 24);
+        this.lblSearchFilterDuration.Location = new Point(162, 24);
         this.lblSearchFilterDuration.AutoSize = true;
 
-        this.cmbSearchFilterDuration.Location = new Point(202, 21);
-        this.cmbSearchFilterDuration.Size = new Size(104, 23);
+        this.cmbSearchFilterDuration.Location = new Point(210, 21);
+        this.cmbSearchFilterDuration.Size = new Size(96, 23);
         this.cmbSearchFilterDuration.DropDownStyle = ComboBoxStyle.DropDownList;
         this.cmbSearchFilterDuration.Items.AddRange(new object[] { "Không dùng", "Dưới 4 phút", "4 - 20 phút", "Trên 20 phút" });
         this.cmbSearchFilterDuration.SelectedIndex = 0;
 
-        this.lblSearchFilterUploadDate.Text = "Ngày tải lên";
+        this.lblSearchFilterUploadDate.Text = "Ngày tải";
         this.lblSearchFilterUploadDate.Location = new Point(10, 52);
         this.lblSearchFilterUploadDate.AutoSize = true;
 
-        this.cmbSearchFilterUploadDate.Location = new Point(88, 49);
-        this.cmbSearchFilterUploadDate.Size = new Size(95, 23);
+        this.cmbSearchFilterUploadDate.Location = new Point(68, 49);
+        this.cmbSearchFilterUploadDate.Size = new Size(88, 23);
         this.cmbSearchFilterUploadDate.DropDownStyle = ComboBoxStyle.DropDownList;
         this.cmbSearchFilterUploadDate.Items.AddRange(new object[] { "Không dùng", "Hôm nay", "Giờ qua", "Tuần này", "Tháng này", "Năm nay" });
         this.cmbSearchFilterUploadDate.SelectedIndex = 1;
 
         this.lblSearchFilterSortBy.Text = "Ưu tiên";
-        this.lblSearchFilterSortBy.Location = new Point(10, 80);
+        this.lblSearchFilterSortBy.Location = new Point(162, 52);
         this.lblSearchFilterSortBy.AutoSize = true;
 
-        this.cmbSearchFilterSortBy.Location = new Point(88, 77);
-        this.cmbSearchFilterSortBy.Size = new Size(95, 23);
+        this.cmbSearchFilterSortBy.Location = new Point(210, 49);
+        this.cmbSearchFilterSortBy.Size = new Size(96, 23);
         this.cmbSearchFilterSortBy.DropDownStyle = ComboBoxStyle.DropDownList;
         this.cmbSearchFilterSortBy.Items.AddRange(new object[] { "Không dùng", "Ngày tải lên", "Số lượt xem", "Xếp hạng" });
         this.cmbSearchFilterSortBy.SelectedIndex = 0;
 
         this.chkSearchFilterLive.Text = "Live (Trực tiếp)";
-        this.chkSearchFilterLive.Location = new Point(10, 108);
-        this.chkSearchFilterLive.Size = new Size(106, 20);
+        this.chkSearchFilterLive.Location = new Point(10, 78);
+        this.chkSearchFilterLive.Size = new Size(145, 20);
         this.chkSearchFilterLive.Checked = true;
 
-        this.chkSearchFilterCommons.Text = "Commons";
-        this.chkSearchFilterCommons.Location = new Point(120, 108);
-        this.chkSearchFilterCommons.Size = new Size(78, 20);
-
         this.chkSearchFilterSubtitles.Text = "Phụ đề";
-        this.chkSearchFilterSubtitles.Location = new Point(202, 108);
-        this.chkSearchFilterSubtitles.Size = new Size(62, 20);
+        this.chkSearchFilterSubtitles.Location = new Point(162, 78);
+        this.chkSearchFilterSubtitles.Size = new Size(140, 20);
 
-        this.chkSearchFilter4K.Text = "4K";
-        this.chkSearchFilter4K.Location = new Point(268, 108);
-        this.chkSearchFilter4K.Size = new Size(42, 20);
+        this.chkSearchFilterCommons.Text = "Commons";
+        this.chkSearchFilterCommons.Location = new Point(10, 104);
+        this.chkSearchFilterCommons.Size = new Size(145, 20);
 
-        this.pnlFilterExtraOptions.Location = new Point(6, 134);
-        this.pnlFilterExtraOptions.Size = new Size(304, 58);
-        this.pnlFilterExtraOptions.BorderStyle = BorderStyle.FixedSingle;
-
-        this.chkSearchFilterRandomWatch.Text = "Xem ngẫu nhiên";
-        this.chkSearchFilterRandomWatch.Location = new Point(4, 6);
-        this.chkSearchFilterRandomWatch.Size = new Size(110, 20);
-
-        this.chkSearchFilterDirectUrl.Text = "URL";
-        this.chkSearchFilterDirectUrl.Location = new Point(116, 6);
-        this.chkSearchFilterDirectUrl.Size = new Size(50, 20);
-
-        this.chkSearchFilterAutoEmail.Text = "Tự động phân bổ email";
-        this.chkSearchFilterAutoEmail.Location = new Point(168, 6);
-        this.chkSearchFilterAutoEmail.Size = new Size(130, 20);
-        this.chkSearchFilterAutoEmail.Checked = true;
-
-        this.chkSearchFilterRetrySearch.Text = "Tìm kiếm lại";
-        this.chkSearchFilterRetrySearch.Location = new Point(4, 30);
-        this.chkSearchFilterRetrySearch.Size = new Size(110, 20);
-        this.chkSearchFilterRetrySearch.Checked = true;
-
-        this.chkSearchFilterLaixiKeyboard.Text = "Check LaixiKeyBoard";
-        this.chkSearchFilterLaixiKeyboard.Location = new Point(168, 30);
-        this.chkSearchFilterLaixiKeyboard.Size = new Size(130, 20);
-        this.chkSearchFilterLaixiKeyboard.Checked = true;
-
-        this.pnlFilterExtraOptions.Controls.AddRange(new Control[] {
-            this.chkSearchFilterRandomWatch, this.chkSearchFilterDirectUrl, this.chkSearchFilterAutoEmail,
-            this.chkSearchFilterRetrySearch, this.chkSearchFilterLaixiKeyboard
-        });
+        this.chkSearchFilter4K.Text = "Video 4K";
+        this.chkSearchFilter4K.Location = new Point(162, 104);
+        this.chkSearchFilter4K.Size = new Size(140, 20);
 
         this.gbSearchFilter.Controls.AddRange(new Control[] {
             this.lblSearchFilterType, this.cmbSearchFilterType,
             this.lblSearchFilterDuration, this.cmbSearchFilterDuration,
             this.lblSearchFilterUploadDate, this.cmbSearchFilterUploadDate,
             this.lblSearchFilterSortBy, this.cmbSearchFilterSortBy,
-            this.chkSearchFilterLive, this.chkSearchFilterCommons,
-            this.chkSearchFilterSubtitles, this.chkSearchFilter4K,
-            this.pnlFilterExtraOptions
+            this.chkSearchFilterLive, this.chkSearchFilterSubtitles,
+            this.chkSearchFilterCommons, this.chkSearchFilter4K
         });
 
         // Group 3: Report & Anti-bot Settings
         this.gbReportSettings.Text = "Bộ lọc Tiêu chí Báo cáo";
-        this.gbReportSettings.Location = new Point(6, 566);
+        this.gbReportSettings.Location = new Point(6, 502);
         this.gbReportSettings.Size = new Size(316, 270);
 
         this.lblScenario.Text = "Kịch bản:";
@@ -561,96 +490,28 @@ partial class MainForm
             "Nội dung khiêu dâm",
             "Lạm dụng trẻ em",
             "Khủng bố",
-            "Vi phạm bản quyền của tôi"
+            "Vi phạm bản quyền của tôi",
+            "Tất cả danh mục (Xoay vòng ngẫu nhiên)"
         });
         this.cmbMainReason.SelectedIndex = 0;
 
-        this.lblReasonFile.Text = "Tệp lý do:";
-        this.lblReasonFile.Location = new Point(10, 80);
-        this.lblReasonFile.AutoSize = true;
+        this.btnOpenSettings.Text = "⚙ Cài đặt nâng cao...";
+        this.btnOpenSettings.Location = new Point(80, 78);
+        this.btnOpenSettings.Size = new Size(225, 30);
+        this.btnOpenSettings.BackColor = Color.FromArgb(245, 245, 245);
+        this.btnOpenSettings.Cursor = Cursors.Hand;
 
-        this.txtReasonFile.Location = new Point(80, 77);
-        this.txtReasonFile.Size = new Size(160, 23);
-        this.txtReasonFile.PlaceholderText = "Chọn file nội dung lý do...";
-
-        this.btnSelectReasonFile.Text = "Chọn";
-        this.btnSelectReasonFile.Location = new Point(245, 76);
-        this.btnSelectReasonFile.Size = new Size(60, 25);
-
-        this.lblWatchDuration.Text = "Xem (giây):";
-        this.lblWatchDuration.Location = new Point(10, 108);
-        this.lblWatchDuration.AutoSize = true;
-        this.numMinWatch.Location = new Point(80, 105);
-        this.numMinWatch.Size = new Size(55, 23);
-        this.numMinWatch.Minimum = 5;
-        this.numMinWatch.Maximum = 600;
-        this.numMinWatch.Value = 35;
-
-        this.lblTo.Text = "đến";
-        this.lblTo.Location = new Point(140, 108);
-        this.lblTo.AutoSize = true;
-        this.numMaxWatch.Location = new Point(170, 105);
-        this.numMaxWatch.Size = new Size(55, 23);
-        this.numMaxWatch.Minimum = 10;
-        this.numMaxWatch.Maximum = 900;
-        this.numMaxWatch.Value = 90;
-
-        this.lblCooldown.Text = "Nghỉ (s):";
-        this.lblCooldown.Location = new Point(10, 137);
-        this.lblCooldown.AutoSize = true;
-        this.numCooldown.Location = new Point(80, 134);
-        this.numCooldown.Size = new Size(55, 23);
-        this.numCooldown.Minimum = 0;
-        this.numCooldown.Maximum = 1800;
-        this.numCooldown.Value = 120;
-
-        this.lblConcurrency.Text = "Luồng:";
-        this.lblConcurrency.Location = new Point(145, 137);
-        this.lblConcurrency.AutoSize = true;
-        this.numConcurrency.Location = new Point(190, 134);
-        this.numConcurrency.Size = new Size(55, 23);
-        this.numConcurrency.Minimum = 1;
-        this.numConcurrency.Maximum = 32;
-        this.numConcurrency.Value = 3;
-
-        this.chkAutoSkipAd.Text = "Bỏ qua quảng cáo (Skip Ad)";
-        this.chkAutoSkipAd.Location = new Point(10, 162);
-        this.chkAutoSkipAd.Size = new Size(200, 20);
-        this.chkAutoSkipAd.Checked = true;
-
-        this.chkNaturalEngagement.Text = "Mô phỏng người thật (cuộn đọc comment)";
-        this.chkNaturalEngagement.Location = new Point(10, 184);
-        this.chkNaturalEngagement.Size = new Size(290, 20);
-        this.chkNaturalEngagement.Checked = true;
-
-        this.chkRandomWatch.Text = "Xem ngẫu nhiên (Random watch)";
-        this.chkRandomWatch.Location = new Point(10, 206);
-        this.chkRandomWatch.Size = new Size(220, 20);
-        this.chkRandomWatch.Checked = true;
-
-        this.chkRotateReasons.Text = "Tự động xoay vòng lý do vi phạm";
-        this.chkRotateReasons.Location = new Point(10, 228);
-        this.chkRotateReasons.Size = new Size(230, 20);
-        this.chkRotateReasons.Checked = true;
-
-        this.chkAutoAllocate.Text = "Tự động phân bổ tài khoản Proxy";
-        this.chkAutoAllocate.Location = new Point(10, 250);
-        this.chkAutoAllocate.Size = new Size(230, 20);
-        this.chkAutoAllocate.Checked = true;
-
+        this.gbReportSettings.Size = new Size(316, 118);
         this.gbReportSettings.Controls.AddRange(new Control[] {
             this.lblScenario, this.cmbScenario, this.lblMainReason, this.cmbMainReason,
-            this.lblReasonFile, this.txtReasonFile, this.btnSelectReasonFile,
-            this.lblWatchDuration, this.numMinWatch, this.lblTo, this.numMaxWatch,
-            this.lblCooldown, this.numCooldown, this.lblConcurrency, this.numConcurrency,
-            this.chkAutoSkipAd, this.chkNaturalEngagement, this.chkRandomWatch, this.chkRotateReasons, this.chkAutoAllocate
+            this.btnOpenSettings
         });
 
         // Left Bottom Action Buttons
-        this.pnlLeftBottomButtons.Location = new Point(6, 842);
+        this.pnlLeftBottomButtons.Location = new Point(6, 626);
         this.pnlLeftBottomButtons.Size = new Size(316, 50);
 
-        this.btnConnectDevices.Text = "Quét thiết bị";
+        this.btnConnectDevices.Text = "Kết nối";
         this.btnConnectDevices.Location = new Point(0, 8);
         this.btnConnectDevices.Size = new Size(80, 36);
 
@@ -682,7 +543,7 @@ partial class MainForm
 
         // Top Action Bar
         this.pnlTopActions.Dock = DockStyle.Top;
-        this.pnlTopActions.Height = 84;
+        this.pnlTopActions.Height = 48;
         this.pnlTopActions.BackColor = Color.FromArgb(245, 245, 245);
         this.pnlTopActions.BorderStyle = BorderStyle.FixedSingle;
         this.pnlTopActions.Padding = new Padding(6);
@@ -695,42 +556,26 @@ partial class MainForm
         this.btnActionCloseAll.Location = new Point(86, 8);
         this.btnActionCloseAll.Size = new Size(95, 30);
 
-        this.btnActionFullScreen.Text = "Toàn màn hình";
-        this.btnActionFullScreen.Location = new Point(186, 8);
-        this.btnActionFullScreen.Size = new Size(110, 30);
-
-        this.btnActionCheckAccount.Text = "Kiểm tra tài khoản";
-        this.btnActionCheckAccount.Location = new Point(301, 8);
-        this.btnActionCheckAccount.Size = new Size(130, 30);
-
-        this.btnActionCheckYoutube.Text = "Kiểm tra trên YouTube";
-        this.btnActionCheckYoutube.Location = new Point(436, 8);
-        this.btnActionCheckYoutube.Size = new Size(150, 30);
-
-        this.btnActionReallocate.Text = "Phân bổ lại tài khoản";
-        this.btnActionReallocate.Location = new Point(591, 8);
-        this.btnActionReallocate.Size = new Size(140, 30);
-
         this.btnActionResetCache.Text = "Xóa cache YouTube";
-        this.btnActionResetCache.Location = new Point(6, 44);
+        this.btnActionResetCache.Location = new Point(186, 8);
         this.btnActionResetCache.Size = new Size(135, 30);
 
         this.btnActionScanTcp.Text = "Quét gom TCP";
-        this.btnActionScanTcp.Location = new Point(146, 44);
+        this.btnActionScanTcp.Location = new Point(326, 8);
         this.btnActionScanTcp.Size = new Size(110, 30);
 
         this.btnActionExportCsv.Text = "Xuất báo cáo CSV";
-        this.btnActionExportCsv.Location = new Point(261, 44);
+        this.btnActionExportCsv.Location = new Point(441, 8);
         this.btnActionExportCsv.Size = new Size(125, 30);
 
         this.btnActionClearCompleted.Text = "Dọn tác vụ xong";
-        this.btnActionClearCompleted.Location = new Point(391, 44);
+        this.btnActionClearCompleted.Location = new Point(571, 8);
         this.btnActionClearCompleted.Size = new Size(120, 30);
 
         this.pnlTopActions.Controls.AddRange(new Control[] {
-            this.btnActionHome, this.btnActionCloseAll, this.btnActionFullScreen,
-            this.btnActionCheckAccount, this.btnActionCheckYoutube, this.btnActionReallocate,
-            this.btnActionResetCache, this.btnActionScanTcp, this.btnActionExportCsv, this.btnActionClearCompleted
+            this.btnActionHome, this.btnActionCloseAll,
+            this.btnActionResetCache, this.btnActionScanTcp,
+            this.btnActionExportCsv, this.btnActionClearCompleted
         });
 
         // Upper Section: Tasks Grid
@@ -755,38 +600,18 @@ partial class MainForm
             Width = 65,
             ReadOnly = true
         };
-        var colActionRestart = new DataGridViewButtonColumn
+        var colActions = new DataGridViewButtonColumn
         {
-            Name = "COL_ACTION_RESTART",
-            HeaderText = "Khởi động lại",
-            Text = "Khởi động lại",
+            Name = "COL_ACTIONS",
+            HeaderText = "Hành động",
+            Text = "Thao tác ▾",
             UseColumnTextForButtonValue = true,
-            Width = 95,
-            ReadOnly = true
-        };
-        var colActionStop = new DataGridViewButtonColumn
-        {
-            Name = "COL_ACTION_STOP",
-            HeaderText = "Dừng",
-            Text = "Dừng",
-            UseColumnTextForButtonValue = true,
-            Width = 60,
-            ReadOnly = true
-        };
-        var colActionDel = new DataGridViewButtonColumn
-        {
-            Name = "COL_ACTION_DEL",
-            HeaderText = "Xóa",
-            Text = "Xóa",
-            UseColumnTextForButtonValue = true,
-            Width = 55,
+            Width = 90,
             ReadOnly = true
         };
 
         this.dgvTasks.Columns.Add(colActionStart);
-        this.dgvTasks.Columns.Add(colActionRestart);
-        this.dgvTasks.Columns.Add(colActionStop);
-        this.dgvTasks.Columns.Add(colActionDel);
+        this.dgvTasks.Columns.Add(colActions);
 
         this.dgvTasks.Columns.Add("COL_DEV_COUNT", "Số thiết bị");
         this.dgvTasks.Columns["COL_DEV_COUNT"].Width = 75;
@@ -815,8 +640,8 @@ partial class MainForm
         var colRandStart = new DataGridViewCheckBoxColumn
         {
             Name = "COL_RANDOM_START",
-            HeaderText = "Bắt đầu ngẫu nhiên",
-            Width = 80,
+            HeaderText = "Ngẫu nhiên",
+            Width = 85,
             TrueValue = true,
             FalseValue = false,
             ReadOnly = false

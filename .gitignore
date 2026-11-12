@@ -27,3 +27,8 @@ TestResults/
 ## Screenshots generated during execution
 Screenshots/
 test_screenshots/
+
+## Deployment & Binary distributions
+dist/
+*.zip
+deploy/*.zip

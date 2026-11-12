@@ -51,6 +51,18 @@ public class UiLanguageManagerTests
     [InlineData("Xóa cache YouTube", AppLanguage.English, "Clear YT Cache")]
     [InlineData("Quét thiết bị", AppLanguage.Korean, "기기 검색")]
     [InlineData("Quét thiết bị", AppLanguage.English, "Scan Devices")]
+    [InlineData("Nhật Ký:", AppLanguage.Korean, "실시간 로그:")]
+    [InlineData("Nhật Ký:", AppLanguage.English, "Live Log:")]
+    [InlineData("Cuộn", AppLanguage.Korean, "자동 스크롤")]
+    [InlineData("Cuộn", AppLanguage.English, "Auto Scroll")]
+    [InlineData("Mở Logs", AppLanguage.Korean, "로그 열기")]
+    [InlineData("Mở Logs", AppLanguage.English, "Open Logs")]
+    [InlineData("Tất cả thiết bị", AppLanguage.Korean, "모든 기기")]
+    [InlineData("Tất cả thiết bị", AppLanguage.English, "All devices")]
+    [InlineData("1. Tìm kiếm, xem và báo cáo", AppLanguage.Korean, "1. 검색, 시청 및 신고")]
+    [InlineData("1. Tìm kiếm, xem và báo cáo", AppLanguage.English, "1. Search, watch and report")]
+    [InlineData("Không dùng", AppLanguage.Korean, "사용 안함")]
+    [InlineData("Hôm nay", AppLanguage.Korean, "오늘")]
     public void Translate_ReturnsExpectedLanguageText(string viText, AppLanguage targetLang, string expected)
     {
         string result = UiLanguageManager.Translate(viText, targetLang);

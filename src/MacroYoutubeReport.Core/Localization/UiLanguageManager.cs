@@ -422,8 +422,37 @@ public static class UiLanguageManager
         ["Xác nhận thành công"] = ("접수 확인 성공", "Confirmed Success"),
         ["Hoàn thành báo cáo"] = ("신고 완료", "Report Completed"),
 
-        // Headers
-        ["Nhật Ký Thực Thi Thời Gian Thực (Live Log)"] = ("실시간 실행 로그 (Live Log)", "Real-time Execution Live Log")
+        // Headers & Live Log
+        ["Nhật Ký Thực Thi Thời Gian Thực (Live Log)"] = ("실시간 실행 로그 (Live Log)", "Real-time Execution Live Log"),
+        ["Nhật Ký:"] = ("실시간 로그:", "Live Log:"),
+        ["Cuộn"] = ("자동 스크롤", "Auto Scroll"),
+        ["Mở Logs"] = ("로그 열기", "Open Logs"),
+        ["Tất cả thiết bị"] = ("모든 기기", "All devices"),
+
+        // Scenarios
+        ["1. Tìm kiếm, xem và báo cáo"] = ("1. 검색, 시청 및 신고", "1. Search, watch and report"),
+        ["2. Truy cập URL trực tiếp và báo cáo"] = ("2. URL 직접 접속 및 신고", "2. Direct URL access and report"),
+        ["3. Báo cáo kênh vi phạm bản quyền/spam"] = ("3. 저작권 침해/스팸 채널 신고", "3. Report copyright/spam channel"),
+        ["4. Báo cáo video Shorts"] = ("4. Shorts 동영상 신고", "4. Report Shorts video"),
+        ["5. Báo cáo bình luận độc hại"] = ("5. 악성 댓글 신고", "5. Report harmful comment"),
+
+        // Reasons
+        ["Spam hoặc gây hiểu lầm"] = ("스팸 또는 혼동을 야기하는 콘텐츠", "Spam or misleading"),
+        ["Hành vi có hại hoặc nguy hiểm"] = ("유해하거나 위험한 행위", "Harmful or dangerous acts"),
+        ["Thông tin sai lệch"] = ("잘못된 정보 (허위 정보)", "Misinformation"),
+        ["Nội dung kích động thù địch"] = ("증오 또는 악의적인 콘텐츠", "Hateful or abusive content"),
+        ["Quấy rối hoặc bắt nạt"] = ("괴롭힘 또는 사이버 폭력", "Harassment or bullying"),
+        ["Bạo lực hoặc phản cảm"] = ("폭력적 또는 혐오스러운 콘텐츠", "Violent or repulsive content"),
+        ["Nội dung khiêu dâm"] = ("성적인 콘텐츠", "Sexual content"),
+        ["Lạm dụng trẻ em"] = ("아동 학대", "Child abuse"),
+        ["Khủng bố"] = ("테러 조장", "Promotes terrorism"),
+        ["Vi phạm bản quyền của tôi"] = ("내 권리 침해 (저작권/개인정보)", "Infringes my rights"),
+        ["Tất cả danh mục (Xoay vòng ngẫu nhiên)"] = ("모든 카테고리 (무작위 순환)", "All categories (Random rotation)"),
+
+        // Additional Filter Types
+        ["Danh sách phát"] = ("재생목록", "Playlist"),
+        ["Phim"] = ("영화", "Movie"),
+        ["Shorts"] = ("Shorts", "Shorts")
     };
 
     private static readonly Dictionary<string, (string Kr, string En)> LogDirectTranslations = new(StringComparer.OrdinalIgnoreCase)

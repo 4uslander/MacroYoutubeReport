@@ -40,7 +40,7 @@ public static class ScenarioDefinitions
 
                 string shot = await driver.CaptureScreenshotAsync("01_HomeReady", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Khởi động app", "Trang chủ YouTube đã mở và sẵn sàng.", shot);
-            }, TimeSpan.FromSeconds(60)),
+            }, TimeSpan.FromSeconds(120)),
 
             new DelegateWorkflowStep("2. Gõ tìm kiếm từ khóa", async (driver, ctx, ct) =>
             {
@@ -77,7 +77,7 @@ public static class ScenarioDefinitions
                 await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
                 string shot = await driver.CaptureScreenshotAsync("03_VideoOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Chọn video mục tiêu", "Đã tìm thấy và mở video mục tiêu thành công.", shot);
-            }, TimeSpan.FromSeconds(180)),
+            }, TimeSpan.FromSeconds(300)),
 
             new DelegateWorkflowStep("4. Xem video tự nhiên", async (driver, ctx, ct) =>
             {
@@ -421,7 +421,7 @@ public static class ScenarioDefinitions
 
                 string shot = await driver.CaptureScreenshotAsync("01_LiveReady", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Khởi động app", "Trang chủ YouTube đã mở và sẵn sàng.", shot);
-            }, TimeSpan.FromSeconds(60)),
+            }, TimeSpan.FromSeconds(120)),
 
             new DelegateWorkflowStep("2. Điều hướng vào Livestream", async (driver, ctx, ct) =>
             {
@@ -453,7 +453,7 @@ public static class ScenarioDefinitions
                 await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
                 string shot = await driver.CaptureScreenshotAsync("02_LiveStreamOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Vào livestream", "Đã mở luồng phát trực tiếp thành công.", shot);
-            }, TimeSpan.FromSeconds(180)),
+            }, TimeSpan.FromSeconds(300)),
 
             new DelegateWorkflowStep("3. Xem tự nhiên & tương tác Live Chat", async (driver, ctx, ct) =>
             {

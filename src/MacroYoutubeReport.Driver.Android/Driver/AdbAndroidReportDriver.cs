@@ -85,7 +85,6 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         await TryDismissPopupsAsync(device, ct).ConfigureAwait(false);
         await EscapeShortsTrapAsync(device, ct).ConfigureAwait(false);
-        await EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
     }
 
     public async Task EnsureNoAdPlayingAsync(CancellationToken ct = default)
@@ -98,8 +97,21 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
             var doc = await AdbUiXmlDumper.Instance.DumpUiXmlDocumentAsync(device, ct).ConfigureAwait(false);
             if (doc == null) break;
 
+            // Nếu đang ở màn hình Home / Feed (không có trình phát video đang mở) -> thoát ngay lập tức
+            bool isAtHomeOrFeed = doc.SelectSingleNode(
+                "//node[(@content-desc='홈' or @content-desc='Home') and (@selected='true' or @clickable='true')]") != null
+                && doc.SelectSingleNode("//node[contains(@resource-id, 'watch_while_layout') or contains(@resource-id, 'player')]") == null;
+
+            if (isAtHomeOrFeed)
+            {
+                break;
+            }
+
             // 1. Tìm nút bỏ qua quảng cáo (Skip Ad)
-            var skipNode = doc.SelectSingleNode("//node[contains(@resource-id, 'skip_ad') or contains(@text, 'Bỏ qua') or contains(@text, 'Skip') or contains(@text, '건너뛰기') or contains(@content-desc, 'Bỏ qua') or contains(@content-desc, 'Skip')]");
+            var skipNode = doc.SelectSingleNode(
+                "//node[contains(@resource-id, 'skip_ad') or contains(@text, 'Bỏ qua') or contains(@text, 'Skip') or " +
+                "contains(@text, '건너뛰기') or contains(@content-desc, 'Bỏ qua') or contains(@content-desc, 'Skip') or contains(@content-desc, '건너뛰기')]");
+
             if (skipNode != null)
             {
                 var elem = AdbUiXmlDumper.ParseElement(skipNode);
@@ -111,8 +123,11 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
                 }
             }
 
-            // 2. Kiểm tra xem có nhãn Ad/Quảng cáo/Sponsored đang chạy không
-            var sponsoredNode = doc.SelectSingleNode("//node[contains(@text, 'Được tài trợ') or contains(@text, 'Sponsored') or contains(@text, '스폰서') or contains(@text, 'Quảng cáo')]");
+            // 2. Kiểm tra xem có nhãn Ad/Quảng cáo/Sponsored đang chạy trong Video Player không (loại trừ các card trên Feed)
+            var sponsoredNode = doc.SelectSingleNode(
+                "//node[(contains(@resource-id, 'ad_') or contains(@resource-id, 'player') or ancestor::node[contains(@resource-id, 'player')]) and " +
+                "(contains(@text, 'Được tài trợ') or contains(@text, 'Sponsored') or contains(@text, '스폰서') or contains(@text, 'Quảng cáo'))]");
+
             if (sponsoredNode != null)
             {
                 await Task.Delay(2000, ct).ConfigureAwait(false);
@@ -127,7 +142,6 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
     public async Task NavigateHomeAsync(CancellationToken ct = default)
     {
         var device = EnsureDevice();
-        await EnsureAppReadyAsync(ct).ConfigureAwait(false);
 
         for (int retry = 0; retry < 4; retry++)
         {
@@ -652,8 +666,8 @@ public sealed class AdbAndroidReportDriver : IYouTubeReportDriver
 
         string cleanTitle = target.VideoTitle?.TrimEnd('.', '…', ' ') ?? string.Empty;
 
-        // Lướt tìm video mục tiêu (tối đa 50 lần)
-        int maxScrollAttempts = 50;
+        // Lướt tìm video mục tiêu (tối đa 80 lần)
+        int maxScrollAttempts = 80;
         int midX = _screenResolution.Width / 2;
         // Khoảng cách vuốt nhẹ nhàng (mỗi lần vuốt khoảng 20% chiều cao màn hình để không bỏ sót thẻ video)
         int startY = (int)(_screenResolution.Height * 0.62);

@@ -26,17 +26,35 @@ public sealed class AdbDeviceManager
     private static readonly Lazy<AdbDeviceManager> _instance = new(() => new AdbDeviceManager());
     public static AdbDeviceManager Instance => _instance.Value;
 
+    private IReadOnlyList<ManagedAndroidDevice>? _cachedDevices;
+    private DateTime _lastScanTime = DateTime.MinValue;
+    private readonly SemaphoreSlim _scanLock = new(1, 1);
+
     public AdbClient Client => AdbServerManager.Instance.Client;
 
-    public async Task<IReadOnlyList<ManagedAndroidDevice>> ScanDevicesAsync(CancellationToken ct = default)
+    public Task<IReadOnlyList<ManagedAndroidDevice>> ScanDevicesAsync(CancellationToken ct = default)
+        => ScanDevicesAsync(forceRefresh: false, ct);
+
+    public async Task<IReadOnlyList<ManagedAndroidDevice>> ScanDevicesAsync(bool forceRefresh, CancellationToken ct = default)
     {
-        if (!AdbServerManager.Instance.EnsureServerRunning())
+        if (!forceRefresh && _cachedDevices != null && (DateTime.UtcNow - _lastScanTime).TotalSeconds < 3)
         {
-            return Array.Empty<ManagedAndroidDevice>();
+            return _cachedDevices;
         }
 
+        await _scanLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            if (!forceRefresh && _cachedDevices != null && (DateTime.UtcNow - _lastScanTime).TotalSeconds < 3)
+            {
+                return _cachedDevices;
+            }
+
+            if (!AdbServerManager.Instance.EnsureServerRunning())
+            {
+                return Array.Empty<ManagedAndroidDevice>();
+            }
+
             var rawList = Client.GetDevices();
             var result = new List<ManagedAndroidDevice>();
 
@@ -60,11 +78,17 @@ public sealed class AdbDeviceManager
                 });
             }
 
+            _cachedDevices = result;
+            _lastScanTime = DateTime.UtcNow;
             return result;
         }
         catch
         {
-            return Array.Empty<ManagedAndroidDevice>();
+            return _cachedDevices ?? Array.Empty<ManagedAndroidDevice>();
+        }
+        finally
+        {
+            _scanLock.Release();
         }
     }
 

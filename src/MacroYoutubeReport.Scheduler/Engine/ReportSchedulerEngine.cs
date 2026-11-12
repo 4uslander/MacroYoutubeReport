@@ -183,9 +183,14 @@ public sealed class ReportSchedulerEngine : IAsyncDisposable
                     PreferredPlatform = platform,
                     AssignedDeviceIdOrProfile = devId.Trim()
                 };
-                if (EnqueueTask(req)) count++;
+                if (_pendingTasks.TryAdd(req.TaskId, req))
+                {
+                    _channel.Writer.TryWrite(req);
+                    count++;
+                }
             }
         }
+        NotifyQueueStatusChanged();
         return count;
     }
 
@@ -293,19 +298,13 @@ public sealed class ReportSchedulerEngine : IAsyncDisposable
 
         try
         {
-            // Lắng nghe tiến độ từng bước
-            void StepHandler(ReportStepResult s) => OnStepProgress?.Invoke(request, s);
-            _workflowEngine.OnStepCompleted += StepHandler;
-
-            IReadOnlyList<ReportStepResult> results;
-            try
-            {
-                results = await _workflowEngine.ExecuteScenarioAsync(driver, steps, context, taskCts.Token).ConfigureAwait(false);
-            }
-            finally
-            {
-                _workflowEngine.OnStepCompleted -= StepHandler;
-            }
+            // Thực thi kịch bản với callback tiến độ riêng biệt của từng tác vụ (tránh nhân bản sự kiện đa luồng)
+            var results = await _workflowEngine.ExecuteScenarioAsync(
+                driver, 
+                steps, 
+                context, 
+                onStepCompleted: s => OnStepProgress?.Invoke(request, s), 
+                taskCts.Token).ConfigureAwait(false);
 
             bool allSuccess = results.Count > 0 && results.All(r => r.IsSuccess);
             record.Status = allSuccess ? ExecutionStatus.Succeeded : ExecutionStatus.Failed;

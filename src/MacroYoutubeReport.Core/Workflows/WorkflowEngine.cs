@@ -11,13 +11,24 @@ public sealed class WorkflowEngine
     public event Action<ReportStepResult>? OnStepCompleted;
 
     /// <summary>
-    /// Thực thi một danh sách các bước kịch bản theo thứ tự.
+    /// Thực thi một danh sách các bước kịch bản theo thứ tự (tương thích ngược).
+    /// </summary>
+    public Task<IReadOnlyList<ReportStepResult>> ExecuteScenarioAsync(
+        IYouTubeReportDriver driver,
+        IReadOnlyList<IWorkflowStep> steps,
+        WorkflowContext context,
+        CancellationToken ct = default)
+        => ExecuteScenarioAsync(driver, steps, context, onStepCompleted: null, ct);
+
+    /// <summary>
+    /// Thực thi một danh sách các bước kịch bản theo thứ tự với callback tiến độ riêng biệt.
     /// Nếu một bước thất bại, dừng chuỗi và trả về kết quả lỗi (trừ khi bước đó được cấu hình bỏ qua).
     /// </summary>
     public async Task<IReadOnlyList<ReportStepResult>> ExecuteScenarioAsync(
         IYouTubeReportDriver driver,
         IReadOnlyList<IWorkflowStep> steps,
         WorkflowContext context,
+        Action<ReportStepResult>? onStepCompleted,
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(driver);
@@ -48,6 +59,7 @@ public sealed class WorkflowEngine
             }
 
             results.Add(result);
+            onStepCompleted?.Invoke(result);
             OnStepCompleted?.Invoke(result);
 
             if (!result.IsSuccess)

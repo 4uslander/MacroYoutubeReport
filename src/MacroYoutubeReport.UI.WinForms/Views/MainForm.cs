@@ -249,13 +249,9 @@ public partial class MainForm : Form, IMainView
         // 5. Target Input & Operations
         this.btnAddTarget.Click += (_, _) =>
         {
-            var targetType = cmbTargetType.SelectedIndex switch
-            {
-                1 => ReportTargetType.Channel,
-                2 => ReportTargetType.Shorts,
-                3 => ReportTargetType.LiveStream,
-                _ => ReportTargetType.Video
-            };
+            var targetType = cmbTargetType.SelectedIndex == 0
+                ? ReportTargetType.LiveStream
+                : ReportTargetType.Video;
 
             var item = new ReportTargetItem
             {
@@ -344,11 +340,7 @@ public partial class MainForm : Form, IMainView
                         this.txtTitle.Text = t.VideoTitle ?? string.Empty;
                         this.txtChannel.Text = t.ChannelName ?? string.Empty;
                         this.txtUrl.Text = t.TargetUrl ?? string.Empty;
-                        int typeIdx = (int)t.TargetType;
-                        if (typeIdx >= 0 && typeIdx < this.cmbTargetType.Items.Count)
-                        {
-                            this.cmbTargetType.SelectedIndex = typeIdx;
-                        }
+                        this.cmbTargetType.SelectedIndex = t.TargetType == ReportTargetType.LiveStream ? 0 : 1;
                     }
                 }
             }
@@ -711,20 +703,20 @@ public partial class MainForm : Form, IMainView
     private void LocalizeTargetTypeComboBox(AppLanguage lang)
     {
         int prevIdx = cmbTargetType.SelectedIndex;
-        if (prevIdx < 0) prevIdx = 3; // Mặc định là LiveStream
+        if (prevIdx < 0) prevIdx = 0; // Mặc định là LiveStream
 
         cmbTargetType.Items.Clear();
         if (lang == AppLanguage.Korean)
         {
-            cmbTargetType.Items.AddRange(new object[] { "동영상 (Video)", "채널 (Channel)", "Shorts", "라이브 (LiveStream)" });
+            cmbTargetType.Items.AddRange(new object[] { "라이브 (LiveStream)", "동영상 (Video)" });
         }
         else if (lang == AppLanguage.English)
         {
-            cmbTargetType.Items.AddRange(new object[] { "Video", "Channel", "Shorts", "LiveStream" });
+            cmbTargetType.Items.AddRange(new object[] { "LiveStream", "Video" });
         }
         else
         {
-            cmbTargetType.Items.AddRange(new object[] { "Video", "Kênh (Channel)", "Shorts", "LiveStream (Trực tiếp)" });
+            cmbTargetType.Items.AddRange(new object[] { "LiveStream (Trực tiếp)", "Video" });
         }
 
         cmbTargetType.SelectedIndex = Math.Clamp(prevIdx, 0, cmbTargetType.Items.Count - 1);
@@ -859,13 +851,9 @@ public partial class MainForm : Form, IMainView
 
         if (!string.IsNullOrWhiteSpace(kw) || !string.IsNullOrWhiteSpace(title) || !string.IsNullOrWhiteSpace(url))
         {
-            var targetType = cmbTargetType.SelectedIndex switch
-            {
-                1 => ReportTargetType.Channel,
-                2 => ReportTargetType.Shorts,
-                3 => ReportTargetType.LiveStream,
-                _ => ReportTargetType.Video
-            };
+            var targetType = cmbTargetType.SelectedIndex == 0
+                ? ReportTargetType.LiveStream
+                : ReportTargetType.Video;
 
             var item = new ReportTargetItem
             {

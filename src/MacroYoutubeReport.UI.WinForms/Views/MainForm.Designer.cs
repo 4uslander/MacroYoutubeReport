@@ -258,6 +258,7 @@ partial class MainForm
         this.tsmiOpenLogFolder.Text = "Mở thư mục Logs";
         this.tsmiExportHistory.Text = "Xuất báo cáo CSV";
         this.tsmiImportAccounts.Text = "Nhập tài khoản Gmail...";
+        this.tsmiImportAccounts.Visible = false;
         this.tsmiImportProxies.Text = "Nhập danh sách Proxy...";
         this.tsmiExit.Text = "Thoát";
 
@@ -272,6 +273,7 @@ partial class MainForm
         this.tsmiLangVi.Text = "VI";
         this.tsmiLangKr.Text = "KR";
         this.tsmiLangEn.Text = "EN";
+        this.tsmiLangEn.Visible = false;
 
         this.tsmiHelp.Text = "Help";
         this.tsmiHelp.DropDownItems.AddRange(new ToolStripItem[] {
@@ -290,7 +292,7 @@ partial class MainForm
         // Group 1: Auth & Platform
         this.gbPlatformAndAuth.Text = "Đăng nhập & Nền tảng";
         this.gbPlatformAndAuth.Location = new Point(6, 6);
-        this.gbPlatformAndAuth.Size = new Size(316, 125);
+        this.gbPlatformAndAuth.Size = new Size(316, 90);
         this.gbPlatformAndAuth.Font = new Font("Segoe UI", 9F, FontStyle.Regular);
 
         this.rdoAndroid.Text = "Android (ADB)";
@@ -301,27 +303,31 @@ partial class MainForm
         this.rdoChrome.Text = "Chrome (Playwright)";
         this.rdoChrome.Location = new Point(145, 22);
         this.rdoChrome.Size = new Size(160, 20);
+        this.rdoChrome.Visible = false;
 
         this.txtMailFile.Location = new Point(10, 52);
         this.txtMailFile.Size = new Size(215, 23);
         this.txtMailFile.PlaceholderText = "Chọn file account.txt...";
+        this.txtMailFile.Visible = false;
 
         this.btnSelectMailFile.Text = "Chọn";
         this.btnSelectMailFile.Location = new Point(230, 50);
         this.btnSelectMailFile.Size = new Size(60, 26);
+        this.btnSelectMailFile.Visible = false;
 
         this.btnHelpMailFile.Location = new Point(294, 54);
         this.btnHelpMailFile.Size = new Size(18, 18);
+        this.btnHelpMailFile.Visible = false;
 
-        this.txtProxyFile.Location = new Point(10, 84);
+        this.txtProxyFile.Location = new Point(10, 52);
         this.txtProxyFile.Size = new Size(215, 23);
         this.txtProxyFile.PlaceholderText = "Chọn file proxy.txt...";
 
         this.btnSelectProxyFile.Text = "Chọn";
-        this.btnSelectProxyFile.Location = new Point(230, 82);
+        this.btnSelectProxyFile.Location = new Point(230, 50);
         this.btnSelectProxyFile.Size = new Size(60, 26);
 
-        this.btnHelpProxyFile.Location = new Point(294, 86);
+        this.btnHelpProxyFile.Location = new Point(294, 54);
         this.btnHelpProxyFile.Size = new Size(18, 18);
 
         this.gbPlatformAndAuth.Controls.AddRange(new Control[] {
@@ -331,7 +337,7 @@ partial class MainForm
 
         // Group 2: Target Input
         this.gbTargetInput.Text = "Cài đặt Mục tiêu";
-        this.gbTargetInput.Location = new Point(6, 137);
+        this.gbTargetInput.Location = new Point(6, 102);
         this.gbTargetInput.Size = new Size(316, 215);
 
         this.lblTargetType.Text = "Loại:";
@@ -341,8 +347,8 @@ partial class MainForm
         this.cmbTargetType.Location = new Point(80, 22);
         this.cmbTargetType.Size = new Size(225, 23);
         this.cmbTargetType.DropDownStyle = ComboBoxStyle.DropDownList;
-        this.cmbTargetType.Items.AddRange(new object[] { "Video", "Kênh (Channel)", "Shorts", "LiveStream (Trực tiếp)" });
-        this.cmbTargetType.SelectedIndex = 3; // Mặc định là LiveStream
+        this.cmbTargetType.Items.AddRange(new object[] { "LiveStream (Trực tiếp)", "Video" });
+        this.cmbTargetType.SelectedIndex = 0; // Mặc định là LiveStream
 
         this.lblKeyword.Text = "Từ khóa:";
         this.lblKeyword.Location = new Point(10, 55);
@@ -383,7 +389,7 @@ partial class MainForm
 
         // Group 2.5: Search Filter (AutoYouTube Style)
         this.gbSearchFilter.Text = "Bộ lọc tìm kiếm";
-        this.gbSearchFilter.Location = new Point(6, 358);
+        this.gbSearchFilter.Location = new Point(6, 323);
         this.gbSearchFilter.Size = new Size(316, 138);
 
         this.lblSearchFilterType.Text = "Phân loại";
@@ -454,7 +460,7 @@ partial class MainForm
 
         // Group 3: Report & Anti-bot Settings
         this.gbReportSettings.Text = "Bộ lọc Tiêu chí Báo cáo";
-        this.gbReportSettings.Location = new Point(6, 502);
+        this.gbReportSettings.Location = new Point(6, 467);
         this.gbReportSettings.Size = new Size(316, 270);
 
         this.lblScenario.Text = "Kịch bản:";
@@ -508,7 +514,7 @@ partial class MainForm
         });
 
         // Left Bottom Action Buttons
-        this.pnlLeftBottomButtons.Location = new Point(6, 626);
+        this.pnlLeftBottomButtons.Location = new Point(6, 591);
         this.pnlLeftBottomButtons.Size = new Size(316, 50);
 
         this.btnConnectDevices.Text = "Kết nối";

@@ -9,20 +9,97 @@ namespace MacroYoutubeReport.Scheduler.Journal;
 /// </summary>
 public sealed class SqliteExecutionJournal : IExecutionJournal
 {
-    private readonly string _connectionString;
+    private string _connectionString;
     private SqliteConnection? _connection;
+    private readonly string _rawDbPath;
 
     public SqliteExecutionJournal(string dbPath = "report_journal.db")
     {
-        _connectionString = $"Data Source={dbPath};";
+        _rawDbPath = dbPath;
+        _connectionString = BuildConnectionString(ResolveSafeDatabasePath(dbPath));
+    }
+
+    private static string BuildConnectionString(string path)
+    {
+        return new SqliteConnectionStringBuilder
+        {
+            DataSource = path,
+            Mode = SqliteOpenMode.ReadWriteCreate,
+            Cache = SqliteCacheMode.Shared
+        }.ToString();
+    }
+
+    private static string ResolveSafeDatabasePath(string dbPath)
+    {
+        try
+        {
+            // 1. Ưu tiên đường dẫn tại thư mục chứa file .exe của ứng dụng
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string fullPath = Path.IsPathRooted(dbPath) ? dbPath : Path.Combine(baseDir, dbPath);
+            string? dir = Path.GetDirectoryName(fullPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            // Kiểm tra quyền ghi thực tế trên thư mục
+            string testFile = Path.Combine(dir ?? baseDir, $".write_test_{Guid.NewGuid():N}.tmp");
+            File.WriteAllText(testFile, "test");
+            File.Delete(testFile);
+
+            return fullPath;
+        }
+        catch
+        {
+            // 2. Fallback nếu thư mục ứng dụng bị chỉ đọc (ví dụ trong Program Files hoặc chạy chưa giải nén)
+            try
+            {
+                string localAppData = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "MacroYoutubeReport");
+                Directory.CreateDirectory(localAppData);
+                return Path.Combine(localAppData, Path.GetFileName(dbPath));
+            }
+            catch
+            {
+                // 3. Fallback cuối cùng: temp folder
+                return Path.Combine(Path.GetTempPath(), Path.GetFileName(dbPath));
+            }
+        }
     }
 
     public async Task InitializeAsync(CancellationToken ct = default)
     {
         if (_connection != null) return;
 
-        _connection = new SqliteConnection(_connectionString);
-        await _connection.OpenAsync(ct).ConfigureAwait(false);
+        try
+        {
+            _connection = new SqliteConnection(_connectionString);
+            await _connection.OpenAsync(ct).ConfigureAwait(false);
+        }
+        catch (SqliteException)
+        {
+            // Fallback sang LocalApplicationData nếu đường dẫn ban đầu bị lỗi quyền truy cập file (SQLite Error 14)
+            try
+            {
+                string appDataPath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "MacroYoutubeReport",
+                    Path.GetFileName(_rawDbPath));
+
+                Directory.CreateDirectory(Path.GetDirectoryName(appDataPath)!);
+                _connectionString = BuildConnectionString(appDataPath);
+                _connection = new SqliteConnection(_connectionString);
+                await _connection.OpenAsync(ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Fallback cứu cánh cuối cùng: In-Memory Database (đảm bảo ứng dụng KHÔNG BAO GIỜ bị crash khi khởi động)
+                _connectionString = "Data Source=:memory:;Mode=Memory;Cache=Shared;";
+                _connection = new SqliteConnection(_connectionString);
+                await _connection.OpenAsync(ct).ConfigureAwait(false);
+            }
+        }
 
         const string createTableSql = @"
             CREATE TABLE IF NOT EXISTS ReportRecords (

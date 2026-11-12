@@ -102,15 +102,22 @@ public sealed class MainPresenter
 
     private async Task OnViewLoadedAsync()
     {
-        _view.AppendLog("Đang khởi động hệ thống Macro YouTube Report...", "INFO");
+        try
+        {
+            _view.AppendLog("Đang khởi động hệ thống Macro YouTube Report...", "INFO");
 
-        await _engine.StartAsync().ConfigureAwait(false);
-        await ScanDevicesAsync().ConfigureAwait(false);
-        LoadChromeProfiles();
-        LoadAccountsAndProxies();
-        await RefreshHistoryDataAsync().ConfigureAwait(false);
+            await _engine.StartAsync().ConfigureAwait(false);
+            await ScanDevicesAsync().ConfigureAwait(false);
+            LoadChromeProfiles();
+            LoadAccountsAndProxies();
+            await RefreshHistoryDataAsync().ConfigureAwait(false);
 
-        _view.AppendLog("Hệ thống đã sẵn sàng.", "INFO");
+            _view.AppendLog("Hệ thống đã sẵn sàng.", "INFO");
+        }
+        catch (Exception ex)
+        {
+            _view.AppendLog($"Cảnh báo khởi tạo: {ex.Message}", "WARN");
+        }
     }
 
     private async Task OnScanDevicesRequestedAsync()

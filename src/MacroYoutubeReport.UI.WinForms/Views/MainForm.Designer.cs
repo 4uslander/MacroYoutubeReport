@@ -118,7 +118,13 @@ partial class MainForm
     private SplitContainer splitLower;
     private DataGridView dgvDevices;
     private Panel pnlLogContainer;
+    private FlowLayoutPanel pnlLogHeader;
     private Label lblLogHeader;
+    private ComboBox cboLogDeviceFilter;
+    private ComboBox cboLogLevelFilter;
+    private CheckBox chkLogAutoScroll;
+    private Button btnClearLogView;
+    private Button btnOpenLogFolderView;
     private RichTextBox rtbLiveLog;
 
     protected override void Dispose(bool disposing)
@@ -238,7 +244,13 @@ partial class MainForm
         this.splitLower = new SplitContainer();
         this.dgvDevices = new DataGridView();
         this.pnlLogContainer = new Panel();
+        this.pnlLogHeader = new FlowLayoutPanel();
         this.lblLogHeader = new Label();
+        this.cboLogDeviceFilter = new ComboBox();
+        this.cboLogLevelFilter = new ComboBox();
+        this.chkLogAutoScroll = new CheckBox();
+        this.btnClearLogView = new Button();
+        this.btnOpenLogFolderView = new Button();
         this.rtbLiveLog = new RichTextBox();
 
         // 1. MenuStrip
@@ -693,52 +705,54 @@ partial class MainForm
         this.btnSelectAllTasks.Size = new Size(55, 25);
 
         this.lblTaskCountRatio.Text = "0/0";
-        this.lblTaskCountRatio.Location = new Point(152, 8);
-        this.lblTaskCountRatio.AutoSize = true;
+        this.lblTaskCountRatio.Location = new Point(150, 5);
+        this.lblTaskCountRatio.Size = new Size(65, 23);
+        this.lblTaskCountRatio.AutoSize = false;
+        this.lblTaskCountRatio.TextAlign = ContentAlignment.MiddleCenter;
 
         this.btnMoveUp.Text = "▲";
-        this.btnMoveUp.Location = new Point(185, 4);
+        this.btnMoveUp.Location = new Point(220, 4);
         this.btnMoveUp.Size = new Size(28, 25);
 
         this.btnMoveDown.Text = "▼";
-        this.btnMoveDown.Location = new Point(216, 4);
+        this.btnMoveDown.Location = new Point(252, 4);
         this.btnMoveDown.Size = new Size(28, 25);
 
         this.btnCheckAll.Text = "✓";
-        this.btnCheckAll.Location = new Point(247, 4);
+        this.btnCheckAll.Location = new Point(284, 4);
         this.btnCheckAll.Size = new Size(28, 25);
 
         this.rdoFilterAll.Text = "Tất cả";
-        this.rdoFilterAll.Location = new Point(285, 6);
+        this.rdoFilterAll.Location = new Point(320, 6);
         this.rdoFilterAll.Size = new Size(65, 22);
         this.rdoFilterAll.Checked = true;
 
         this.rdoFilterDone.Text = "Hoàn thành";
-        this.rdoFilterDone.Location = new Point(352, 6);
-        this.rdoFilterDone.Size = new Size(92, 22);
+        this.rdoFilterDone.Location = new Point(390, 6);
+        this.rdoFilterDone.Size = new Size(95, 22);
 
         this.rdoFilterRunning.Text = "Đang chạy";
-        this.rdoFilterRunning.Location = new Point(446, 6);
-        this.rdoFilterRunning.Size = new Size(85, 22);
+        this.rdoFilterRunning.Location = new Point(490, 6);
+        this.rdoFilterRunning.Size = new Size(88, 22);
 
         this.rdoFilterFailed.Text = "Thất bại";
-        this.rdoFilterFailed.Location = new Point(533, 6);
+        this.rdoFilterFailed.Location = new Point(582, 6);
         this.rdoFilterFailed.Size = new Size(72, 22);
 
         this.btnFind.Text = "Tìm";
-        this.btnFind.Location = new Point(610, 4);
+        this.btnFind.Location = new Point(660, 4);
         this.btnFind.Size = new Size(45, 25);
 
         this.btnRemoveDup.Text = "Trùng";
-        this.btnRemoveDup.Location = new Point(658, 4);
+        this.btnRemoveDup.Location = new Point(710, 4);
         this.btnRemoveDup.Size = new Size(52, 25);
 
         this.btnDuplicate.Text = "Sao chép";
-        this.btnDuplicate.Location = new Point(713, 4);
+        this.btnDuplicate.Location = new Point(768, 4);
         this.btnDuplicate.Size = new Size(68, 25);
 
         this.lblStatusSummary.Text = "0/0/0 - 0/0";
-        this.lblStatusSummary.Location = new Point(790, 8);
+        this.lblStatusSummary.Location = new Point(845, 8);
         this.lblStatusSummary.AutoSize = true;
         this.lblStatusSummary.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
 
@@ -753,7 +767,7 @@ partial class MainForm
         // Lower Section: SplitContainer (Devices Grid + Live Console Log)
         this.splitLower.Dock = DockStyle.Fill;
         this.splitLower.Orientation = Orientation.Vertical;
-        this.splitLower.SplitterDistance = 975;
+        this.splitLower.FixedPanel = FixedPanel.Panel2;
 
         // Lower Left: Devices Grid
         this.dgvDevices.Dock = DockStyle.Fill;
@@ -769,7 +783,7 @@ partial class MainForm
         {
             Name = "DEV_SEL",
             HeaderText = "Chọn",
-            Width = 48,
+            Width = 42,
             TrueValue = true,
             FalseValue = false,
             ReadOnly = false
@@ -777,35 +791,35 @@ partial class MainForm
         this.dgvDevices.Columns.Add(colDevSel);
 
         this.dgvDevices.Columns.Add("DEV_NUM", "STT");
-        this.dgvDevices.Columns["DEV_NUM"].Width = 42;
+        this.dgvDevices.Columns["DEV_NUM"].Width = 40;
         this.dgvDevices.Columns["DEV_NUM"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_IP", "IP / Proxy");
-        this.dgvDevices.Columns["DEV_IP"].Width = 135;
+        this.dgvDevices.Columns["DEV_IP"].Width = 115;
         this.dgvDevices.Columns["DEV_IP"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_SERIAL", "Serial thiết bị");
-        this.dgvDevices.Columns["DEV_SERIAL"].Width = 160;
+        this.dgvDevices.Columns["DEV_SERIAL"].Width = 145;
         this.dgvDevices.Columns["DEV_SERIAL"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_MODEL", "Thiết bị");
-        this.dgvDevices.Columns["DEV_MODEL"].Width = 100;
+        this.dgvDevices.Columns["DEV_MODEL"].Width = 90;
         this.dgvDevices.Columns["DEV_MODEL"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_MAIL", "Tài khoản");
-        this.dgvDevices.Columns["DEV_MAIL"].Width = 130;
+        this.dgvDevices.Columns["DEV_MAIL"].Width = 110;
         this.dgvDevices.Columns["DEV_MAIL"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_PASS", "Mật khẩu");
-        this.dgvDevices.Columns["DEV_PASS"].Width = 80;
+        this.dgvDevices.Columns["DEV_PASS"].Width = 70;
         this.dgvDevices.Columns["DEV_PASS"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_TARGET", "Mục tiêu đang chạy");
-        this.dgvDevices.Columns["DEV_TARGET"].Width = 180;
+        this.dgvDevices.Columns["DEV_TARGET"].Width = 140;
         this.dgvDevices.Columns["DEV_TARGET"].ReadOnly = true;
 
         this.dgvDevices.Columns.Add("DEV_STATUS", "Trạng thái");
-        this.dgvDevices.Columns["DEV_STATUS"].Width = 95;
+        this.dgvDevices.Columns["DEV_STATUS"].Width = 85;
         this.dgvDevices.Columns["DEV_STATUS"].ReadOnly = true;
 
         this.splitLower.Panel1.Controls.Add(this.dgvDevices);
@@ -814,14 +828,60 @@ partial class MainForm
         this.pnlLogContainer.Dock = DockStyle.Fill;
         this.pnlLogContainer.BackColor = Color.White;
 
-        this.lblLogHeader.Text = "Nhật Ký Thực Thi Thời Gian Thực (Live Log)";
-        this.lblLogHeader.Dock = DockStyle.Top;
-        this.lblLogHeader.Height = 26;
-        this.lblLogHeader.BackColor = Color.FromArgb(245, 245, 245);
-        this.lblLogHeader.ForeColor = Color.FromArgb(40, 40, 40);
+        // Log Header Toolbar as FlowLayoutPanel
+        this.pnlLogHeader.Dock = DockStyle.Top;
+        this.pnlLogHeader.Height = 36;
+        this.pnlLogHeader.BackColor = Color.FromArgb(245, 245, 245);
+        this.pnlLogHeader.Padding = new Padding(4, 5, 4, 3);
+        this.pnlLogHeader.WrapContents = false;
+        this.pnlLogHeader.AutoScroll = false;
+
+        this.lblLogHeader.Text = "Nhật Ký:";
+        this.lblLogHeader.AutoSize = true;
         this.lblLogHeader.Font = new Font("Segoe UI", 9F, FontStyle.Bold);
-        this.lblLogHeader.TextAlign = ContentAlignment.MiddleLeft;
-        this.lblLogHeader.Padding = new Padding(6, 0, 0, 0);
+        this.lblLogHeader.ForeColor = Color.FromArgb(40, 40, 40);
+        this.lblLogHeader.Margin = new Padding(2, 6, 4, 0);
+
+        this.cboLogDeviceFilter.DropDownStyle = ComboBoxStyle.DropDownList;
+        this.cboLogDeviceFilter.Width = 110;
+        this.cboLogDeviceFilter.Font = new Font("Segoe UI", 8.5F);
+        this.cboLogDeviceFilter.Margin = new Padding(0, 3, 4, 0);
+
+        this.cboLogLevelFilter.DropDownStyle = ComboBoxStyle.DropDownList;
+        this.cboLogLevelFilter.Width = 65;
+        this.cboLogLevelFilter.Font = new Font("Segoe UI", 8.5F);
+        this.cboLogLevelFilter.Margin = new Padding(0, 3, 4, 0);
+
+        this.chkLogAutoScroll.Text = "Cuộn";
+        this.chkLogAutoScroll.Checked = true;
+        this.chkLogAutoScroll.AutoSize = true;
+        this.chkLogAutoScroll.Font = new Font("Segoe UI", 8.5F);
+        this.chkLogAutoScroll.Margin = new Padding(2, 6, 4, 0);
+
+        this.btnClearLogView.Text = "Xóa";
+        this.btnClearLogView.Width = 45;
+        this.btnClearLogView.Height = 24;
+        this.btnClearLogView.FlatStyle = FlatStyle.Flat;
+        this.btnClearLogView.BackColor = Color.White;
+        this.btnClearLogView.Font = new Font("Segoe UI", 8.5F);
+        this.btnClearLogView.Margin = new Padding(2, 2, 4, 0);
+
+        this.btnOpenLogFolderView.Text = "Mở Logs";
+        this.btnOpenLogFolderView.Width = 65;
+        this.btnOpenLogFolderView.Height = 24;
+        this.btnOpenLogFolderView.FlatStyle = FlatStyle.Flat;
+        this.btnOpenLogFolderView.BackColor = Color.White;
+        this.btnOpenLogFolderView.Font = new Font("Segoe UI", 8.5F);
+        this.btnOpenLogFolderView.Margin = new Padding(2, 2, 2, 0);
+
+        this.pnlLogHeader.Controls.AddRange(new Control[] {
+            this.lblLogHeader,
+            this.cboLogDeviceFilter,
+            this.cboLogLevelFilter,
+            this.chkLogAutoScroll,
+            this.btnClearLogView,
+            this.btnOpenLogFolderView
+        });
 
         this.rtbLiveLog.Dock = DockStyle.Fill;
         this.rtbLiveLog.ReadOnly = true;
@@ -831,7 +891,8 @@ partial class MainForm
         this.rtbLiveLog.BorderStyle = BorderStyle.None;
 
         this.pnlLogContainer.Controls.Add(this.rtbLiveLog);
-        this.pnlLogContainer.Controls.Add(this.lblLogHeader);
+        this.pnlLogContainer.Controls.Add(this.pnlLogHeader);
+        this.pnlLogHeader.SendToBack();
         this.splitLower.Panel2.Controls.Add(this.pnlLogContainer);
 
         this.pnlRight.Controls.Add(this.splitLower);

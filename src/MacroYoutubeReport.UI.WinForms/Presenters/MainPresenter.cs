@@ -52,14 +52,13 @@ public sealed class MainPresenter
         // Lắng nghe sự kiện từ Engine
         _engine.OnTaskQueued += req =>
         {
-            _view.AppendLog($"Đã thêm mục tiêu vào hàng đợi: {req.Target.VideoTitle ?? req.Target.Keyword}", "INFO");
             UpdateStatusCounters();
         };
 
         _engine.OnTaskStarted += (req, deviceId) =>
         {
             string targetName = req.Target.VideoTitle ?? req.Target.Keyword;
-            _view.AppendLog($"Bắt đầu xử lý: [{deviceId}] -> {targetName}", "INFO");
+            _view.AppendLog($"Bắt đầu xử lý: {targetName}", "INFO", deviceId);
             _view.UpdateDeviceRunningStatus(deviceId, targetName, "Đang chạy");
             UpdateStatusCounters();
         };
@@ -67,7 +66,7 @@ public sealed class MainPresenter
         _engine.OnStepProgress += (req, step) =>
         {
             string level = step.IsSuccess ? "INFO" : "WARN";
-            _view.AppendLog($"[{req.AssignedDeviceIdOrProfile}] [{step.StepName}] {step.Message}", level);
+            _view.AppendLog($"[{step.StepName}] {step.Message}", level, req.AssignedDeviceIdOrProfile);
         };
 
         _engine.OnTaskCompleted += record =>
@@ -75,18 +74,17 @@ public sealed class MainPresenter
             if (record.Status == ExecutionStatus.Succeeded)
             {
                 Interlocked.Increment(ref _completedCount);
-                _view.AppendLog($"Thành công: Đã báo cáo mục tiêu [{record.TargetNameOrUrl}] trên [{record.DeviceSerialOrProfile}]!", "SUCCESS");
+                _view.AppendLog($"Thành công: Đã báo cáo mục tiêu [{record.TargetNameOrUrl}]", "SUCCESS", record.DeviceSerialOrProfile);
             }
             else
             {
                 Interlocked.Increment(ref _failedCount);
-                _view.AppendLog($"Thất bại: [{record.TargetNameOrUrl}] trên [{record.DeviceSerialOrProfile}] - Lỗi: {record.ErrorMessage}", "ERROR");
+                _view.AppendLog($"Thất bại: [{record.TargetNameOrUrl}] - Lỗi: {record.ErrorMessage}", "ERROR", record.DeviceSerialOrProfile);
             }
 
             _view.UpdateDeviceRunningStatus(record.DeviceSerialOrProfile, "Đang rảnh", record.Status == ExecutionStatus.Succeeded ? "Hoàn thành" : "Thất bại");
-            _view.RefreshTasksDisplay();
             UpdateStatusCounters();
-            _ = RefreshHistoryDataAsync();
+            ScheduleThrottledGridRefresh();
         };
 
         _engine.OnQueueStatusChanged += (pending, running) =>
@@ -285,6 +283,20 @@ public sealed class MainPresenter
         catch (Exception ex)
         {
             _view.ShowNotification($"Lỗi xuất file CSV: {ex.Message}", isError: true);
+        }
+    }
+
+    private int _isRefreshPending = 0;
+    private void ScheduleThrottledGridRefresh()
+    {
+        if (Interlocked.Exchange(ref _isRefreshPending, 1) == 0)
+        {
+            Task.Delay(1000).ContinueWith(_ =>
+            {
+                Interlocked.Exchange(ref _isRefreshPending, 0);
+                _view.RefreshTasksDisplay();
+                _ = RefreshHistoryDataAsync();
+            });
         }
     }
 

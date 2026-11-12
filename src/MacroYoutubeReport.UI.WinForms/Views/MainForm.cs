@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using MacroYoutubeReport.Core.Enums;
 using MacroYoutubeReport.Core.Localization;
+using MacroYoutubeReport.Core.Logging;
 using MacroYoutubeReport.Core.Models;
 using MacroYoutubeReport.Driver.Android.Adb;
 using MacroYoutubeReport.Scheduler.Accounts;
@@ -13,6 +14,8 @@ public partial class MainForm : Form, IMainView
 {
     private readonly List<ReportTargetItem> _targets = new();
     private readonly ContextMenuStrip _cmsTaskActions = new();
+    private readonly Dictionary<string, int> _deviceRowIndexMap = new(StringComparer.OrdinalIgnoreCase);
+    private readonly System.Windows.Forms.Timer _logFlushTimer = new();
 
     private int _minWatchSeconds = 35;
     private int _maxWatchSeconds = 90;
@@ -24,6 +27,7 @@ public partial class MainForm : Form, IMainView
     private bool _randomWatch = true;
     private bool _rotateReasons = true;
     private bool _autoAllocate = true;
+    private bool _enableDebugScreenshots = false;
 
     [Browsable(false)]
     [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -56,6 +60,7 @@ public partial class MainForm : Form, IMainView
     public MainForm()
     {
         InitializeComponent();
+        InitLogControls();
         WireEvents();
         SwitchLanguage(AppLanguage.Korean);
     }
@@ -65,6 +70,23 @@ public partial class MainForm : Form, IMainView
         this.Load += async (_, _) =>
         {
             if (ViewLoaded != null) await ViewLoaded.Invoke();
+        };
+
+        this.Shown += (_, _) =>
+        {
+            try
+            {
+                int total = splitLower.Width;
+                if (total > 500)
+                {
+                    int target = Math.Max(200, total - 430);
+                    splitLower.SplitterDistance = target;
+                }
+            }
+            catch
+            {
+                // Fallback safely if window layout is in transition
+            }
         };
 
         // 1. Menu Strip Operations
@@ -227,7 +249,8 @@ public partial class MainForm : Form, IMainView
                 naturalEngagement: _enableNaturalEngagement,
                 randomWatch: _randomWatch,
                 rotateReasons: _rotateReasons,
-                autoAllocate: _autoAllocate);
+                autoAllocate: _autoAllocate,
+                debugScreenshots: _enableDebugScreenshots);
 
             if (dlg.ShowDialog(this) == DialogResult.OK)
             {
@@ -241,6 +264,7 @@ public partial class MainForm : Form, IMainView
                 _randomWatch = dlg.RandomWatch;
                 _rotateReasons = dlg.RotateReasons;
                 _autoAllocate = dlg.AutoAllocate;
+                _enableDebugScreenshots = dlg.DebugScreenshots;
 
                 AppendLog($"Đã cập nhật cài đặt: Xem {_minWatchSeconds}-{_maxWatchSeconds}s | Nghỉ {_cooldownSeconds}s | {_concurrency} luồng.", "SUCCESS");
             }
@@ -686,7 +710,7 @@ public partial class MainForm : Form, IMainView
         // Localize Menu
         LocalizeToolStrip(menuStripMain, lang);
 
-        LocalizeTargetTypeComboBox(lang);
+        LocalizeAllComboBoxes(lang);
         UpdateFileHelpTooltips();
 
         RefreshTargetsGrid();
@@ -698,6 +722,16 @@ public partial class MainForm : Form, IMainView
             _ => "Tiếng Việt"
         };
         AppendLog($"Đã chuyển ngôn ngữ sang: {langName}", "INFO");
+    }
+
+    private void LocalizeAllComboBoxes(AppLanguage lang)
+    {
+        LocalizeTargetTypeComboBox(lang);
+        LocalizeSearchFilterComboBoxes(lang);
+        LocalizeScenarioComboBox(lang);
+        LocalizeMainReasonComboBox(lang);
+        LocalizeMiddleFilterComboBox(lang);
+        LocalizeLogFilterControls(lang);
     }
 
     private void LocalizeTargetTypeComboBox(AppLanguage lang)
@@ -720,6 +754,297 @@ public partial class MainForm : Form, IMainView
         }
 
         cmbTargetType.SelectedIndex = Math.Clamp(prevIdx, 0, cmbTargetType.Items.Count - 1);
+    }
+
+    private void LocalizeSearchFilterComboBoxes(AppLanguage lang)
+    {
+        // 1. Phân loại (Type)
+        int prevType = cmbSearchFilterType.SelectedIndex;
+        if (prevType < 0) prevType = 0;
+        cmbSearchFilterType.Items.Clear();
+        if (lang == AppLanguage.Korean)
+        {
+            cmbSearchFilterType.Items.AddRange(new object[] { "사용 안함", "동영상", "채널", "재생목록", "영화" });
+        }
+        else if (lang == AppLanguage.English)
+        {
+            cmbSearchFilterType.Items.AddRange(new object[] { "None", "Video", "Channel", "Playlist", "Movie" });
+        }
+        else
+        {
+            cmbSearchFilterType.Items.AddRange(new object[] { "Không dùng", "Video", "Kênh", "Danh sách phát", "Phim" });
+        }
+        cmbSearchFilterType.SelectedIndex = Math.Clamp(prevType, 0, cmbSearchFilterType.Items.Count - 1);
+
+        // 2. Độ dài (Duration)
+        int prevDuration = cmbSearchFilterDuration.SelectedIndex;
+        if (prevDuration < 0) prevDuration = 0;
+        cmbSearchFilterDuration.Items.Clear();
+        if (lang == AppLanguage.Korean)
+        {
+            cmbSearchFilterDuration.Items.AddRange(new object[] { "사용 안함", "4분 미만", "4~20분", "20분 초과" });
+        }
+        else if (lang == AppLanguage.English)
+        {
+            cmbSearchFilterDuration.Items.AddRange(new object[] { "None", "Under 4 min", "4 - 20 min", "Over 20 min" });
+        }
+        else
+        {
+            cmbSearchFilterDuration.Items.AddRange(new object[] { "Không dùng", "Dưới 4 phút", "4 - 20 phút", "Trên 20 phút" });
+        }
+        cmbSearchFilterDuration.SelectedIndex = Math.Clamp(prevDuration, 0, cmbSearchFilterDuration.Items.Count - 1);
+
+        // 3. Ngày tải lên (Upload Date)
+        int prevUpload = cmbSearchFilterUploadDate.SelectedIndex;
+        if (prevUpload < 0) prevUpload = 1; // Mặc định hôm nay
+        cmbSearchFilterUploadDate.Items.Clear();
+        if (lang == AppLanguage.Korean)
+        {
+            cmbSearchFilterUploadDate.Items.AddRange(new object[] { "사용 안함", "오늘", "지난 1시간", "이번 주", "이번 달", "올해" });
+        }
+        else if (lang == AppLanguage.English)
+        {
+            cmbSearchFilterUploadDate.Items.AddRange(new object[] { "None", "Today", "Last Hour", "This Week", "This Month", "This Year" });
+        }
+        else
+        {
+            cmbSearchFilterUploadDate.Items.AddRange(new object[] { "Không dùng", "Hôm nay", "Giờ qua", "Tuần này", "Tháng này", "Năm nay" });
+        }
+        cmbSearchFilterUploadDate.SelectedIndex = Math.Clamp(prevUpload, 0, cmbSearchFilterUploadDate.Items.Count - 1);
+
+        // 4. Ưu tiên / Sắp xếp (Sort By)
+        int prevSort = cmbSearchFilterSortBy.SelectedIndex;
+        if (prevSort < 0) prevSort = 0;
+        cmbSearchFilterSortBy.Items.Clear();
+        if (lang == AppLanguage.Korean)
+        {
+            cmbSearchFilterSortBy.Items.AddRange(new object[] { "사용 안함", "업로드 날짜", "조회수", "평점" });
+        }
+        else if (lang == AppLanguage.English)
+        {
+            cmbSearchFilterSortBy.Items.AddRange(new object[] { "None", "Upload Date", "View Count", "Rating" });
+        }
+        else
+        {
+            cmbSearchFilterSortBy.Items.AddRange(new object[] { "Không dùng", "Ngày tải lên", "Số lượt xem", "Xếp hạng" });
+        }
+        cmbSearchFilterSortBy.SelectedIndex = Math.Clamp(prevSort, 0, cmbSearchFilterSortBy.Items.Count - 1);
+    }
+
+    private void LocalizeScenarioComboBox(AppLanguage lang)
+    {
+        int prevIdx = cmbScenario.SelectedIndex;
+        if (prevIdx < 0) prevIdx = 0;
+
+        cmbScenario.Items.Clear();
+        if (lang == AppLanguage.Korean)
+        {
+            cmbScenario.Items.AddRange(new object[] {
+                "1. 검색, 시청 및 신고",
+                "2. URL 직접 접속 및 신고",
+                "3. 저작권 침해/스팸 채널 신고",
+                "4. Shorts 동영상 신고",
+                "5. 악성 댓글 신고",
+                "6. 금융/가상화폐 사기 실시간 스트림 신고"
+            });
+        }
+        else if (lang == AppLanguage.English)
+        {
+            cmbScenario.Items.AddRange(new object[] {
+                "1. Search, watch and report",
+                "2. Direct URL access and report",
+                "3. Report copyright/spam channel",
+                "4. Report Shorts video",
+                "5. Report harmful comment",
+                "6. Report Financial/Crypto Scam Live Stream"
+            });
+        }
+        else
+        {
+            cmbScenario.Items.AddRange(new object[] {
+                "1. Tìm kiếm, xem và báo cáo",
+                "2. Truy cập URL trực tiếp và báo cáo",
+                "3. Báo cáo kênh vi phạm bản quyền/spam",
+                "4. Báo cáo video Shorts",
+                "5. Báo cáo bình luận độc hại",
+                "6. Báo cáo Livestream lừa đảo tài chính / crypto"
+            });
+        }
+        cmbScenario.SelectedIndex = Math.Clamp(prevIdx, 0, cmbScenario.Items.Count - 1);
+    }
+
+    private void LocalizeMainReasonComboBox(AppLanguage lang)
+    {
+        int prevIdx = cmbMainReason.SelectedIndex;
+        if (prevIdx < 0) prevIdx = 0;
+
+        cmbMainReason.Items.Clear();
+        if (lang == AppLanguage.Korean)
+        {
+            cmbMainReason.Items.AddRange(new object[] {
+                "금융/가상화폐 사기 (Scams & Fraud)",
+                "스팸 또는 혼동을 야기하는 콘텐츠",
+                "유해하거나 위험한 행위",
+                "잘못된 정보 (허위 정보)",
+                "증오 또는 악의적인 콘텐츠",
+                "괴롭힘 또는 사이버 폭력",
+                "폭력적 또는 혐오스러운 콘텐츠",
+                "성적인 콘텐츠",
+                "아동 학대",
+                "테러 조장",
+                "내 권리 침해 (저작권/개인정보)",
+                "모든 카테고리 (무작위 순환)"
+            });
+        }
+        else if (lang == AppLanguage.English)
+        {
+            cmbMainReason.Items.AddRange(new object[] {
+                "Financial / Crypto Scam (Scams & Fraud)",
+                "Spam or misleading",
+                "Harmful or dangerous acts",
+                "Misinformation",
+                "Hateful or abusive content",
+                "Harassment or bullying",
+                "Violent or repulsive content",
+                "Sexual content",
+                "Child abuse",
+                "Promotes terrorism",
+                "Infringes my rights",
+                "All categories (Random rotation)"
+            });
+        }
+        else
+        {
+            cmbMainReason.Items.AddRange(new object[] {
+                "Lừa đảo tài chính / Tiền ảo (Scams & Fraud)",
+                "Spam hoặc gây hiểu lầm",
+                "Hành vi có hại hoặc nguy hiểm",
+                "Thông tin sai lệch",
+                "Nội dung kích động thù địch",
+                "Quấy rối hoặc bắt nạt",
+                "Bạo lực hoặc phản cảm",
+                "Nội dung khiêu dâm",
+                "Lạm dụng trẻ em",
+                "Khủng bố",
+                "Vi phạm bản quyền của tôi",
+                "Tất cả danh mục (Xoay vòng ngẫu nhiên)"
+            });
+        }
+        cmbMainReason.SelectedIndex = Math.Clamp(prevIdx, 0, cmbMainReason.Items.Count - 1);
+    }
+
+    private void LocalizeMiddleFilterComboBox(AppLanguage lang)
+    {
+        int prevIdx = cmbFilterType.SelectedIndex;
+        if (prevIdx < 0) prevIdx = 0;
+
+        cmbFilterType.Items.Clear();
+        if (lang == AppLanguage.Korean)
+        {
+            cmbFilterType.Items.AddRange(new object[] { "전체", "동영상", "채널", "Shorts" });
+        }
+        else if (lang == AppLanguage.English)
+        {
+            cmbFilterType.Items.AddRange(new object[] { "All", "Video", "Channel", "Shorts" });
+        }
+        else
+        {
+            cmbFilterType.Items.AddRange(new object[] { "Tất cả", "Video", "Kênh", "Shorts" });
+        }
+        cmbFilterType.SelectedIndex = Math.Clamp(prevIdx, 0, cmbFilterType.Items.Count - 1);
+    }
+
+    private void LocalizeLogFilterControls(AppLanguage lang)
+    {
+        string allDevicesText = lang switch
+        {
+            AppLanguage.Korean => "모든 기기",
+            AppLanguage.English => "All devices",
+            _ => "Tất cả thiết bị"
+        };
+
+        int prevDevIdx = cboLogDeviceFilter.SelectedIndex;
+        if (prevDevIdx < 0) prevDevIdx = 0;
+        if (cboLogDeviceFilter.Items.Count > 0)
+        {
+            cboLogDeviceFilter.Items[0] = allDevicesText;
+        }
+        else
+        {
+            cboLogDeviceFilter.Items.Add(allDevicesText);
+        }
+        cboLogDeviceFilter.SelectedIndex = Math.Clamp(prevDevIdx, 0, cboLogDeviceFilter.Items.Count - 1);
+
+        string allLevelsText = lang switch
+        {
+            AppLanguage.Korean => "전체",
+            AppLanguage.English => "All",
+            _ => "Tất cả"
+        };
+        int prevLvlIdx = cboLogLevelFilter.SelectedIndex;
+        if (prevLvlIdx < 0) prevLvlIdx = 0;
+        cboLogLevelFilter.Items.Clear();
+        cboLogLevelFilter.Items.AddRange(new object[] { allLevelsText, "INFO", "WARN", "ERROR", "SUCCESS" });
+        cboLogLevelFilter.SelectedIndex = Math.Clamp(prevLvlIdx, 0, cboLogLevelFilter.Items.Count - 1);
+
+        lblLogHeader.Text = lang switch
+        {
+            AppLanguage.Korean => "실시간 로그:",
+            AppLanguage.English => "Live Log:",
+            _ => "Nhật Ký:"
+        };
+
+        chkLogAutoScroll.Text = lang switch
+        {
+            AppLanguage.Korean => "자동 스크롤",
+            AppLanguage.English => "Auto Scroll",
+            _ => "Cuộn"
+        };
+
+        btnClearLogView.Text = lang switch
+        {
+            AppLanguage.Korean => "삭제",
+            AppLanguage.English => "Clear",
+            _ => "Xóa"
+        };
+
+        btnOpenLogFolderView.Text = lang switch
+        {
+            AppLanguage.Korean => "로그 열기",
+            AppLanguage.English => "Open Logs",
+            _ => "Mở Logs"
+        };
+
+        toolTipHelp.SetToolTip(cboLogDeviceFilter, lang switch
+        {
+            AppLanguage.Korean => "기기별 로그 필터링",
+            AppLanguage.English => "Filter logs by device",
+            _ => "Lọc nhật ký theo thiết bị"
+        });
+        toolTipHelp.SetToolTip(cboLogLevelFilter, lang switch
+        {
+            AppLanguage.Korean => "로그 레벨 필터링 (INFO, WARN, ERROR)",
+            AppLanguage.English => "Filter logs by level (INFO, WARN, ERROR)",
+            _ => "Lọc nhật ký theo cấp độ (INFO, WARN, ERROR)"
+        });
+        toolTipHelp.SetToolTip(chkLogAutoScroll, lang switch
+        {
+            AppLanguage.Korean => "최신 로그로 자동 스크롤",
+            AppLanguage.English => "Auto-scroll to latest log",
+            _ => "Tự động cuộn xuống dòng mới nhất"
+        });
+        toolTipHelp.SetToolTip(btnClearLogView, lang switch
+        {
+            AppLanguage.Korean => "로그 화면 전체 지우기",
+            AppLanguage.English => "Clear all live logs",
+            _ => "Xóa toàn bộ hiển thị nhật ký"
+        });
+        toolTipHelp.SetToolTip(btnOpenLogFolderView, lang switch
+        {
+            AppLanguage.Korean => "로그 파일 저장 폴더 열기",
+            AppLanguage.English => "Open log files folder",
+            _ => "Mở thư mục chứa file log"
+        });
     }
 
     private void UpdateFileHelpTooltips()
@@ -822,7 +1147,11 @@ public partial class MainForm : Form, IMainView
 
     private void ApplyTaskFilter()
     {
-        string typeFilter = cmbFilterType.SelectedItem?.ToString() ?? "Tất cả";
+        var lang = UiLanguageManager.CurrentLanguage;
+        string completedText = UiLanguageManager.Translate("Hoàn thành", lang);
+        string runningText = UiLanguageManager.Translate("Đang chạy", lang);
+        string failedText = UiLanguageManager.Translate("Thất bại", lang);
+
         foreach (DataGridViewRow row in dgvTasks.Rows)
         {
             if (row.IsNewRow) continue;
@@ -830,9 +1159,9 @@ public partial class MainForm : Form, IMainView
 
             string rowStatus = row.Cells["COL_STATUS"].Value?.ToString() ?? string.Empty;
 
-            if (rdoFilterDone.Checked && rowStatus != "Hoàn thành") visible = false;
-            if (rdoFilterRunning.Checked && rowStatus != "Đang chạy") visible = false;
-            if (rdoFilterFailed.Checked && rowStatus != "Thất bại") visible = false;
+            if (rdoFilterDone.Checked && rowStatus != completedText && rowStatus != "Hoàn thành") visible = false;
+            if (rdoFilterRunning.Checked && rowStatus != runningText && rowStatus != "Đang chạy") visible = false;
+            if (rdoFilterFailed.Checked && rowStatus != failedText && rowStatus != "Thất bại") visible = false;
 
             row.Visible = visible;
         }
@@ -1088,6 +1417,7 @@ public partial class MainForm : Form, IMainView
             config.RotateReasons = _rotateReasons;
         }
 
+        config.EnableDebugScreenshots = _enableDebugScreenshots;
         return config;
     }
 
@@ -1099,6 +1429,7 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
+        _enableDebugScreenshots = config.EnableDebugScreenshots;
         _minWatchSeconds = Math.Clamp(config.MinWatchDurationSeconds, 5, 1800);
         _maxWatchSeconds = Math.Clamp(config.MaxWatchDurationSeconds, 5, 1800);
         _cooldownSeconds = Math.Clamp(config.CooldownBetweenReportsSeconds, 0, 3600);
@@ -1195,6 +1526,21 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
+        if (_deviceRowIndexMap.TryGetValue(deviceSerial, out int rowIndex) && rowIndex < dgvDevices.Rows.Count)
+        {
+            var row = dgvDevices.Rows[rowIndex];
+            row.Cells["DEV_TARGET"].Value = targetName;
+            row.Cells["DEV_STATUS"].Value = status;
+            row.Cells["DEV_STATUS"].Style.ForeColor = status switch
+            {
+                "Đang chạy" => Color.DarkOrange,
+                "Hoàn thành" => Color.DarkGreen,
+                "Thất bại" => Color.Red,
+                _ => Color.Black
+            };
+            return;
+        }
+
         foreach (DataGridViewRow row in dgvDevices.Rows)
         {
             string? serial = row.Cells["DEV_SERIAL"].Value?.ToString();
@@ -1202,22 +1548,13 @@ public partial class MainForm : Form, IMainView
             {
                 row.Cells["DEV_TARGET"].Value = targetName;
                 row.Cells["DEV_STATUS"].Value = status;
-                if (status == "Đang chạy")
+                row.Cells["DEV_STATUS"].Style.ForeColor = status switch
                 {
-                    row.Cells["DEV_STATUS"].Style.ForeColor = Color.DarkOrange;
-                }
-                else if (status == "Hoàn thành")
-                {
-                    row.Cells["DEV_STATUS"].Style.ForeColor = Color.DarkGreen;
-                }
-                else if (status == "Thất bại")
-                {
-                    row.Cells["DEV_STATUS"].Style.ForeColor = Color.Red;
-                }
-                else
-                {
-                    row.Cells["DEV_STATUS"].Style.ForeColor = Color.Black;
-                }
+                    "Đang chạy" => Color.DarkOrange,
+                    "Hoàn thành" => Color.DarkGreen,
+                    "Thất bại" => Color.Red,
+                    _ => Color.Black
+                };
                 break;
             }
         }
@@ -1231,10 +1568,14 @@ public partial class MainForm : Form, IMainView
             return;
         }
 
+        _deviceRowIndexMap.Clear();
         dgvDevices.Rows.Clear();
         int stt = 1;
-        foreach (var dev in devices)
+        for (int i = 0; i < devices.Count; i++)
         {
+            var dev = devices[i];
+            _deviceRowIndexMap[dev.Serial] = i;
+
             string ip = dev.Serial.Contains(':') ? dev.Serial.Split(':')[0] : "Direct";
             dgvDevices.Rows.Add(
                 true, // Mặc định tích chọn tất cả thiết bị
@@ -1248,6 +1589,24 @@ public partial class MainForm : Form, IMainView
                 dev.Status.ToString());
         }
         UpdateSelectedDevicesRatio();
+
+        // Cập nhật danh sách thiết bị trên bộ lọc nhật ký
+        string currentSel = cboLogDeviceFilter.SelectedItem?.ToString() ?? "";
+        int prevDevIdx = cboLogDeviceFilter.SelectedIndex;
+        cboLogDeviceFilter.Items.Clear();
+        string allDevicesText = UiLanguageManager.CurrentLanguage switch
+        {
+            AppLanguage.Korean => "모든 기기",
+            AppLanguage.English => "All devices",
+            _ => "Tất cả thiết bị"
+        };
+        cboLogDeviceFilter.Items.Add(allDevicesText);
+        foreach (var dev in devices)
+        {
+            cboLogDeviceFilter.Items.Add(dev.Serial);
+        }
+        int foundIdx = !string.IsNullOrEmpty(currentSel) ? cboLogDeviceFilter.Items.IndexOf(currentSel) : -1;
+        cboLogDeviceFilter.SelectedIndex = foundIdx >= 0 ? foundIdx : (prevDevIdx > 0 ? Math.Clamp(prevDevIdx, 0, cboLogDeviceFilter.Items.Count - 1) : 0);
     }
 
     public void SetChromeProfiles(IReadOnlyList<string> profiles)
@@ -1310,17 +1669,107 @@ public partial class MainForm : Form, IMainView
         lblStatusSummary.Text = $"{pendingCount}/{runningCount}/{completedCount} - 0/{failedCount}";
     }
 
-    public void AppendLog(string message, string level = "INFO")
+    private void InitLogControls()
+    {
+        cboLogLevelFilter.SelectedIndexChanged += (_, _) => ReloadFilteredLogs();
+        cboLogDeviceFilter.SelectedIndexChanged += (_, _) => ReloadFilteredLogs();
+
+        btnClearLogView.Click += (_, _) =>
+        {
+            rtbLiveLog.Clear();
+            AppLogManager.Instance.ClearMemoryLogs();
+        };
+
+        btnOpenLogFolderView.Click += (_, _) => tsmiOpenLogFolder.PerformClick();
+
+        LocalizeLogFilterControls(UiLanguageManager.CurrentLanguage);
+
+        _logFlushTimer.Interval = 150;
+        _logFlushTimer.Tick += OnLogFlushTimerTick;
+        _logFlushTimer.Start();
+    }
+
+    private void ReloadFilteredLogs()
     {
         if (InvokeRequired)
         {
-            BeginInvoke(() => AppendLog(message, level));
+            BeginInvoke(ReloadFilteredLogs);
             return;
         }
 
-        string translated = UiLanguageManager.TranslateLog(message, UiLanguageManager.CurrentLanguage);
+        string devFilter = cboLogDeviceFilter.SelectedIndex > 0 ? (cboLogDeviceFilter.SelectedItem?.ToString() ?? "") : "";
+        string lvlFilter = cboLogLevelFilter.SelectedIndex > 0 ? (cboLogLevelFilter.SelectedItem?.ToString() ?? "") : "";
 
-        Color color = level switch
+        var logs = AppLogManager.Instance.GetFilteredLogs(devFilter, lvlFilter, maxCount: 1000);
+        rtbLiveLog.Clear();
+
+        foreach (var entry in logs)
+        {
+            AppendLogEntryToRtb(entry);
+        }
+
+        if (chkLogAutoScroll.Checked)
+        {
+            rtbLiveLog.SelectionStart = rtbLiveLog.TextLength;
+            rtbLiveLog.ScrollToCaret();
+        }
+    }
+
+    private void OnLogFlushTimerTick(object? sender, EventArgs e)
+    {
+        var logs = AppLogManager.Instance.DrainPendingLogs(50);
+        if (logs.Count == 0) return;
+
+        bool hasDevFilter = cboLogDeviceFilter.SelectedIndex > 0;
+        string devFilter = hasDevFilter ? (cboLogDeviceFilter.SelectedItem?.ToString() ?? "") : "";
+
+        bool hasLvlFilter = cboLogLevelFilter.SelectedIndex > 0;
+        string lvlFilter = hasLvlFilter ? (cboLogLevelFilter.SelectedItem?.ToString() ?? "") : "";
+
+        bool appendedAny = false;
+
+        foreach (var entry in logs)
+        {
+            if (hasDevFilter && !string.Equals(entry.DeviceSerial, devFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (hasLvlFilter && !string.Equals(entry.Level, lvlFilter, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            AppendLogEntryToRtb(entry);
+            appendedAny = true;
+        }
+
+        if (appendedAny)
+        {
+            // Cắt bớt nếu số dòng vượt quá 1.500 dòng để RichTextBox luôn mượt và nhẹ
+            if (rtbLiveLog.Lines.Length > 1500)
+            {
+                int cutIndex = rtbLiveLog.GetFirstCharIndexFromLine(300);
+                if (cutIndex > 0)
+                {
+                    rtbLiveLog.Select(0, cutIndex);
+                    rtbLiveLog.SelectedText = string.Empty;
+                }
+            }
+
+            if (chkLogAutoScroll.Checked)
+            {
+                rtbLiveLog.SelectionStart = rtbLiveLog.TextLength;
+                rtbLiveLog.ScrollToCaret();
+            }
+        }
+    }
+
+    private void AppendLogEntryToRtb(LogEntry entry)
+    {
+        string translated = UiLanguageManager.TranslateLog(entry.Message, UiLanguageManager.CurrentLanguage);
+
+        Color color = entry.Level switch
         {
             "SUCCESS" => Color.FromArgb(25, 135, 84), // Emerald green
             "WARN" => Color.FromArgb(217, 119, 6),    // Amber/Orange
@@ -1331,11 +1780,16 @@ public partial class MainForm : Form, IMainView
         rtbLiveLog.SelectionStart = rtbLiveLog.TextLength;
         rtbLiveLog.SelectionLength = 0;
         rtbLiveLog.SelectionColor = Color.FromArgb(120, 120, 120);
-        rtbLiveLog.AppendText($"[{DateTime.Now:HH:mm:ss}] ");
+        rtbLiveLog.AppendText($"[{entry.FormattedTimestamp}] ");
 
         rtbLiveLog.SelectionColor = color;
-        rtbLiveLog.AppendText($"[{level}] {translated}\r\n");
-        rtbLiveLog.ScrollToCaret();
+        string devPrefix = string.IsNullOrWhiteSpace(entry.DeviceSerial) ? "" : $"[{entry.DeviceSerial}] ";
+        rtbLiveLog.AppendText($"[{entry.Level}] {devPrefix}{translated}\r\n");
+    }
+
+    public void AppendLog(string message, string level = "INFO", string? deviceSerial = null)
+    {
+        AppLogManager.Instance.Log(message, level, deviceSerial);
     }
 
     public void SetRunningState(bool isRunning)

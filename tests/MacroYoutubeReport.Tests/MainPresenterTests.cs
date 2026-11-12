@@ -77,11 +77,12 @@ public class MainPresenterTests
             LastCounters = (pendingCount, runningCount, completedCount, failedCount);
         }
 
-        public void AppendLog(string message, string level = "INFO")
+        public void AppendLog(string message, string level = "INFO", string? deviceSerial = null)
         {
             lock (_logLock)
             {
-                _logs.Add($"[{level}] {message}");
+                string dev = string.IsNullOrWhiteSpace(deviceSerial) ? "" : $"[{deviceSerial}] ";
+                _logs.Add($"[{level}] {dev}{message}");
             }
         }
         public void SetRunningState(bool isRunning) => IsRunning = isRunning;

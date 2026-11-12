@@ -50,7 +50,7 @@ public interface IMainView
     void SetHistoryRecords(IReadOnlyList<ReportTaskRecord> records);
 
     void UpdateQueueStatus(int pendingCount, int runningCount, int completedCount, int failedCount);
-    void AppendLog(string message, string level = "INFO");
+    void AppendLog(string message, string level = "INFO", string? deviceSerial = null);
     void SetRunningState(bool isRunning);
     void ShowNotification(string message, bool isError = false);
 }

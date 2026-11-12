@@ -83,6 +83,12 @@ public sealed class ReportScenarioConfig
     public int MaxReportsPerDevicePerDay { get; set; } = 8;
 
     /// <summary>
+    /// Bật chụp ảnh màn hình cho toàn bộ các bước trung gian (chỉ nên dùng khi kiểm tra/debug vì tốn dung lượng và làm chậm tốc độ).
+    /// Mặc định: false (chỉ chụp ảnh bằng chứng ở bước cuối cùng hoặc khi phát sinh lỗi).
+    /// </summary>
+    public bool EnableDebugScreenshots { get; set; } = false;
+
+    /// <summary>
     /// Tải danh sách nội dung lý do chi tiết từ file văn bản.
     /// Hỗ trợ cả định dạng phân nhóm [Category] hoặc mỗi dòng một lý do xoay vòng.
     /// </summary>

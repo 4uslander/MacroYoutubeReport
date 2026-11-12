@@ -1,3 +1,4 @@
+using MacroYoutubeReport.Core.Drivers;
 using MacroYoutubeReport.Core.Enums;
 using MacroYoutubeReport.Core.Models;
 
@@ -38,7 +39,7 @@ public static class ScenarioDefinitions
                 await driver.EnsureAppReadyAsync(ct).ConfigureAwait(false);
                 await driver.NavigateHomeAsync(ct).ConfigureAwait(false);
 
-                string shot = await driver.CaptureScreenshotAsync("01_HomeReady", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "01_HomeReady", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Khởi động app", "Trang chủ YouTube đã mở và sẵn sàng.", shot);
             }, TimeSpan.FromSeconds(120)),
 
@@ -49,7 +50,7 @@ public static class ScenarioDefinitions
                     : target.VideoTitle ?? target.ChannelName ?? "YouTube";
 
                 await driver.SearchAsync(searchKeyword, ct).ConfigureAwait(false);
-                string shot = await driver.CaptureScreenshotAsync("02_SearchCompleted", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "02_SearchCompleted", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Tìm kiếm từ khóa", $"Đã gõ tìm kiếm từ khóa: '{searchKeyword}'.", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -75,7 +76,7 @@ public static class ScenarioDefinitions
                 }
 
                 await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
-                string shot = await driver.CaptureScreenshotAsync("03_VideoOpened", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "03_VideoOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Chọn video mục tiêu", "Đã tìm thấy và mở video mục tiêu thành công.", shot);
             }, TimeSpan.FromSeconds(300)),
 
@@ -86,7 +87,7 @@ public static class ScenarioDefinitions
                 var duration = TimeSpan.FromSeconds(durationSeconds);
 
                 await driver.WatchVideoWithNaturalEngagementAsync(duration, config.EngagementOptions, ct).ConfigureAwait(false);
-                string shot = await driver.CaptureScreenshotAsync("04_WatchedNatural", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "04_WatchedNatural", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Xem video tự nhiên", $"Đã xem tự nhiên {durationSeconds}s kèm tương tác mô phỏng người thật.", shot);
             }, TimeSpan.FromSeconds(config.MaxWatchDurationSeconds + 60)),
 
@@ -98,7 +99,7 @@ public static class ScenarioDefinitions
                     return ReportStepResult.Failure("Mở menu Báo cáo", "Không thể định vị hoặc mở menu Báo cáo (Report) trên giao diện.");
                 }
 
-                string shot = await driver.CaptureScreenshotAsync("05_ReportMenuOpened", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "05_ReportMenuOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Mở menu Báo cáo", "Đã mở thành công bảng chọn lý do báo cáo.", shot);
             }, TimeSpan.FromSeconds(45)),
 
@@ -111,7 +112,7 @@ public static class ScenarioDefinitions
                     return ReportStepResult.Failure("Gửi báo cáo", $"Không thể gửi báo cáo cho danh mục: {reason.Category}.");
                 }
 
-                string shot = await driver.CaptureScreenshotAsync("06_ReportSubmitted", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "06_ReportSubmitted", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Gửi báo cáo", $"Đã chọn danh mục '{reason.Category}' và gửi báo cáo thành công.", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -159,7 +160,7 @@ public static class ScenarioDefinitions
                 await driver.OpenVideoByUrlAsync(target.TargetUrl, ct).ConfigureAwait(false);
                 await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
 
-                string shot = await driver.CaptureScreenshotAsync("01_UrlVideoOpened", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "01_UrlVideoOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Mở link video", $"Đã mở trực tiếp link: {target.TargetUrl}", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -169,7 +170,7 @@ public static class ScenarioDefinitions
                 int durationSeconds = rnd.Next(config.MinWatchDurationSeconds, Math.Max(config.MinWatchDurationSeconds + 1, config.MaxWatchDurationSeconds));
 
                 await driver.WatchVideoWithNaturalEngagementAsync(TimeSpan.FromSeconds(durationSeconds), config.EngagementOptions, ct).ConfigureAwait(false);
-                string shot = await driver.CaptureScreenshotAsync("02_WatchedNatural", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "02_WatchedNatural", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Xem video tự nhiên", $"Đã xem video {durationSeconds}s.", shot);
             }, TimeSpan.FromSeconds(config.MaxWatchDurationSeconds + 60)),
 
@@ -180,7 +181,7 @@ public static class ScenarioDefinitions
                 {
                     return ReportStepResult.Failure("Mở menu Báo cáo", "Không thể mở menu Báo cáo.");
                 }
-                string shot = await driver.CaptureScreenshotAsync("03_ReportMenuOpened", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "03_ReportMenuOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Mở menu Báo cáo", "Đã mở menu Báo cáo.", shot);
             }, TimeSpan.FromSeconds(45)),
 
@@ -192,7 +193,7 @@ public static class ScenarioDefinitions
                 {
                     return ReportStepResult.Failure("Gửi báo cáo", $"Không thể gửi báo cáo cho danh mục: {reason.Category}.");
                 }
-                string shot = await driver.CaptureScreenshotAsync("04_ReportSubmitted", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "04_ReportSubmitted", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Gửi báo cáo", $"Đã gửi báo cáo: {reason.Category}", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -233,7 +234,7 @@ public static class ScenarioDefinitions
                     : target.ChannelName ?? target.Keyword;
 
                 await driver.OpenChannelPageAsync(channelTarget, ct).ConfigureAwait(false);
-                string shot = await driver.CaptureScreenshotAsync("01_ChannelPageOpened", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "01_ChannelPageOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Mở trang Kênh", $"Đã mở trang kênh: '{channelTarget}'.", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -246,7 +247,7 @@ public static class ScenarioDefinitions
                     return ReportStepResult.Failure("Báo cáo kênh", "Không thể gửi báo cáo kênh.");
                 }
 
-                string shot = await driver.CaptureScreenshotAsync("02_ChannelReportSubmitted", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "02_ChannelReportSubmitted", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Báo cáo kênh", $"Đã gửi báo cáo kênh với lý do: {reason.Category}", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -297,7 +298,7 @@ public static class ScenarioDefinitions
                     await driver.SmartScrollAndSelectVideoAsync(target, ct).ConfigureAwait(false);
                 }
 
-                string shot = await driver.CaptureScreenshotAsync("01_ShortsOpened", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "01_ShortsOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Mở Shorts", "Video Shorts đã mở.", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -305,7 +306,7 @@ public static class ScenarioDefinitions
             {
                 int duration = Random.Shared.Next(config.MinWatchDurationSeconds, config.MaxWatchDurationSeconds);
                 await Task.Delay(TimeSpan.FromSeconds(duration), ct).ConfigureAwait(false);
-                string shot = await driver.CaptureScreenshotAsync("02_ShortsWatched", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "02_ShortsWatched", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Xem Shorts", $"Đã xem Shorts {duration}s.", shot);
             }, TimeSpan.FromSeconds(config.MaxWatchDurationSeconds + 30)),
 
@@ -318,7 +319,7 @@ public static class ScenarioDefinitions
                     return ReportStepResult.Failure("Báo cáo Shorts", "Không thể mở menu hoặc gửi báo cáo Shorts.");
                 }
 
-                string shot = await driver.CaptureScreenshotAsync("03_ShortsReportSubmitted", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "03_ShortsReportSubmitted", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Báo cáo Shorts", $"Đã gửi báo cáo Shorts: {reason.Category}", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -368,7 +369,7 @@ public static class ScenarioDefinitions
                 }
 
                 await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
-                string shot = await driver.CaptureScreenshotAsync("01_CommentVideoOpened", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "01_CommentVideoOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Mở video", "Video chứa bình luận đã mở.", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -381,7 +382,7 @@ public static class ScenarioDefinitions
                     return ReportStepResult.Failure("Báo cáo bình luận", $"Không tìm thấy bình luận có tác giả/nội dung chứa '{commentAuthorOrKeyword}'.");
                 }
 
-                string shot = await driver.CaptureScreenshotAsync("02_CommentReportSubmitted", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "02_CommentReportSubmitted", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Báo cáo bình luận", $"Đã báo cáo bình luận của '{commentAuthorOrKeyword}' với lý do: {reason.Category}", shot);
             }, TimeSpan.FromSeconds(60)),
 
@@ -419,7 +420,7 @@ public static class ScenarioDefinitions
                 await driver.EnsureAppReadyAsync(ct).ConfigureAwait(false);
                 await driver.NavigateHomeAsync(ct).ConfigureAwait(false);
 
-                string shot = await driver.CaptureScreenshotAsync("01_LiveReady", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "01_LiveReady", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Khởi động app", "Trang chủ YouTube đã mở và sẵn sàng.", shot);
             }, TimeSpan.FromSeconds(120)),
 
@@ -451,7 +452,7 @@ public static class ScenarioDefinitions
                 }
 
                 await driver.EnsureNoAdPlayingAsync(ct).ConfigureAwait(false);
-                string shot = await driver.CaptureScreenshotAsync("02_LiveStreamOpened", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "02_LiveStreamOpened", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Vào livestream", "Đã mở luồng phát trực tiếp thành công.", shot);
             }, TimeSpan.FromSeconds(300)),
 
@@ -467,7 +468,7 @@ public static class ScenarioDefinitions
                 };
 
                 await driver.WatchVideoWithNaturalEngagementAsync(TimeSpan.FromSeconds(duration), options, ct).ConfigureAwait(false);
-                string shot = await driver.CaptureScreenshotAsync("03_WatchedLive", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "03_WatchedLive", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Xem tự nhiên", $"Đã xem livestream {duration}s và mô phỏng đọc chat.", shot);
             }, TimeSpan.FromSeconds(120)),
 
@@ -481,7 +482,7 @@ public static class ScenarioDefinitions
                     return ReportStepResult.Failure("Báo cáo livestream", "Không thể hoàn thành quy trình nộp báo cáo vi phạm livestream.");
                 }
 
-                string shot = await driver.CaptureScreenshotAsync("04_LiveReportSubmitted", ct).ConfigureAwait(false);
+                string? shot = await CaptureOptionalScreenshotAsync(driver, config, "04_LiveReportSubmitted", ct).ConfigureAwait(false);
                 return ReportStepResult.Success("Báo cáo vi phạm", $"Đã gửi báo cáo livestream vi phạm: [{reason.Category}] - {reason.CustomDetails}", shot);
             }, TimeSpan.FromSeconds(120)),
 
@@ -499,5 +500,29 @@ public static class ScenarioDefinitions
                 return ReportStepResult.Failure("Chưa hoàn tất", "Hộp thoại báo cáo chưa được gửi thành công hoặc vẫn còn mở trên màn hình.", shot);
             }, TimeSpan.FromSeconds(45))
         };
+    }
+
+    /// <summary>
+    /// Chụp ảnh màn hình bước trung gian nếu cấu hình EnableDebugScreenshots được bật.
+    /// Giúp tiết kiệm 85% dung lượng lưu trữ ổ đĩa và tăng tốc độ thực thi khi chạy hàng loạt thiết bị.
+    /// </summary>
+    private static async Task<string?> CaptureOptionalScreenshotAsync(
+        IYouTubeReportDriver driver,
+        ReportScenarioConfig config,
+        string stepPrefix,
+        CancellationToken ct)
+    {
+        if (config.EnableDebugScreenshots)
+        {
+            try
+            {
+                return await driver.CaptureScreenshotAsync(stepPrefix, ct).ConfigureAwait(false);
+            }
+            catch
+            {
+                // Bỏ qua lỗi chụp ảnh debug để tránh làm gián đoạn kịch bản chính
+            }
+        }
+        return null;
     }
 }

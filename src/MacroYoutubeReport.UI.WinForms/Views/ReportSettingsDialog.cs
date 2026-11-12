@@ -21,6 +21,7 @@ public sealed class ReportSettingsDialog : Form
     public bool RandomWatch => chkRandomWatch.Checked;
     public bool RotateReasons => chkRotateReasons.Checked;
     public bool AutoAllocate => chkAutoAllocate.Checked;
+    public bool DebugScreenshots => chkDebugScreenshots.Checked;
 
     private readonly NumericUpDown numMinWatch;
     private readonly NumericUpDown numMaxWatch;
@@ -34,6 +35,7 @@ public sealed class ReportSettingsDialog : Form
     private readonly CheckBox chkRandomWatch;
     private readonly CheckBox chkRotateReasons;
     private readonly CheckBox chkAutoAllocate;
+    private readonly CheckBox chkDebugScreenshots;
     private readonly Button btnSave;
     private readonly Button btnCancel;
 
@@ -47,7 +49,8 @@ public sealed class ReportSettingsDialog : Form
         bool naturalEngagement,
         bool randomWatch,
         bool rotateReasons,
-        bool autoAllocate)
+        bool autoAllocate,
+        bool debugScreenshots = false)
     {
         var lang = UiLanguageManager.CurrentLanguage;
 
@@ -57,7 +60,7 @@ public sealed class ReportSettingsDialog : Form
         this.MaximizeBox = false;
         this.MinimizeBox = false;
         this.ShowInTaskbar = false;
-        this.ClientSize = new Size(460, 425);
+        this.ClientSize = new Size(460, 455);
         this.Font = new Font("Segoe UI", 9F);
         this.BackColor = Color.FromArgb(248, 249, 250);
 
@@ -145,7 +148,7 @@ public sealed class ReportSettingsDialog : Form
         {
             Text = UiLanguageManager.Translate("Hành vi tương tác & Tự động hóa", lang),
             Location = new Point(12, 192),
-            Size = new Size(436, 175)
+            Size = new Size(436, 205)
         };
 
         chkAutoSkipAd = new CheckBox
@@ -188,8 +191,16 @@ public sealed class ReportSettingsDialog : Form
             Checked = autoAllocate
         };
 
+        chkDebugScreenshots = new CheckBox
+        {
+            Text = UiLanguageManager.Translate("Chụp ảnh toàn bộ các bước (Gỡ lỗi - tốn ổ đĩa)", lang),
+            Location = new Point(15, 166),
+            Size = new Size(390, 22),
+            Checked = debugScreenshots
+        };
+
         gbEngagement.Controls.AddRange(new Control[] {
-            chkAutoSkipAd, chkNaturalEngagement, chkRandomWatch, chkRotateReasons, chkAutoAllocate
+            chkAutoSkipAd, chkNaturalEngagement, chkRandomWatch, chkRotateReasons, chkAutoAllocate, chkDebugScreenshots
         });
 
         // 4. Buttons: Lưu & Hủy
@@ -197,7 +208,7 @@ public sealed class ReportSettingsDialog : Form
         {
             Text = UiLanguageManager.Translate("Lưu cài đặt", lang),
             DialogResult = DialogResult.OK,
-            Location = new Point(242, 380),
+            Location = new Point(242, 410),
             Size = new Size(100, 32),
             BackColor = Color.FromArgb(0, 122, 255),
             ForeColor = Color.White,
@@ -210,7 +221,7 @@ public sealed class ReportSettingsDialog : Form
         {
             Text = UiLanguageManager.Translate("Hủy bỏ", lang),
             DialogResult = DialogResult.Cancel,
-            Location = new Point(348, 380),
+            Location = new Point(348, 410),
             Size = new Size(100, 32)
         };
 
